@@ -25,6 +25,7 @@ use simplelog::{
     CombinedLogger, Config, LevelFilter, SharedLogger, TermLogger, TerminalMode, WriteLogger,
 };
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Once;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -36,6 +37,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 /// runs cleanup; the others block until it is done, so the process never exits
 /// out from under a cleanup that is still killing the backend tree.
 static TERMINATION_CLEANUP: Once = Once::new();
+static QUIT_CONFIRM_OPEN: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
 fn has_saved_window_state(app: tauri::AppHandle) -> bool {
@@ -108,14 +110,25 @@ fn set_training_active(state: tauri::State<'_, TrainingActivityState>, active: b
     }
 }
 
-/// Ask before quitting mid-training (true to proceed). Tray Quit only, as below.
+fn training_is_active(app: &tauri::AppHandle) -> bool {
+    let Some(state) = app.try_state::<TrainingActivityState>() else {
+        return false;
+    };
+    state.lock().map(|running| *running).unwrap_or(false)
+}
+
+fn install_is_active(app: &tauri::AppHandle) -> bool {
+    let Some(state) = app.try_state::<install::InstallState>() else {
+        return false;
+    };
+    install::is_install_running(&state)
+}
+
+/// Ask before quitting mid-training (true to proceed).
 fn confirm_quit_during_training(app: &tauri::AppHandle) -> bool {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-    let Some(state) = app.try_state::<TrainingActivityState>() else {
-        return true;
-    };
-    if !state.lock().map(|running| *running).unwrap_or(false) {
+    if !training_is_active(app) {
         return true;
     }
     app.dialog()
@@ -133,15 +146,12 @@ fn confirm_quit_during_training(app: &tauri::AppHandle) -> bool {
 }
 
 /// Ask before quitting mid-install (true to proceed): `cleanup_child_processes` SIGTERMs the
-/// installer, leaving a venv that looks healthy but cannot start. Tray Quit only, since
-/// RunEvent::Exit must never block on a dialog nobody can answer.
+/// installer, leaving a venv that looks healthy but cannot start. Never called from
+/// RunEvent::Exit, which must not block on a dialog nobody can answer.
 fn confirm_quit_during_install(app: &tauri::AppHandle) -> bool {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-    let Some(install_state) = app.try_state::<install::InstallState>() else {
-        return true;
-    };
-    if !install::is_install_running(&install_state) {
+    if !install_is_active(app) {
         return true;
     }
     app.dialog()
@@ -157,6 +167,35 @@ fn confirm_quit_during_install(app: &tauri::AppHandle) -> bool {
             "Keep installing".to_string(),
         ))
         .blocking_show()
+}
+
+/// Run the quit confirmations off the calling thread, then hand the verdict to
+/// `done`. Returns false when a confirmation is already on screen and this
+/// request was dropped.
+fn spawn_quit_confirmation<F>(app: &tauri::AppHandle, done: F) -> bool
+where
+    F: FnOnce(&tauri::AppHandle, bool) + Send + 'static,
+{
+    if QUIT_CONFIRM_OPEN.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        let proceed =
+            confirm_quit_during_install(&app_handle) && confirm_quit_during_training(&app_handle);
+        QUIT_CONFIRM_OPEN.store(false, Ordering::SeqCst);
+        done(&app_handle, proceed);
+    });
+    true
+}
+
+fn confirm_then_quit(app: &tauri::AppHandle) {
+    spawn_quit_confirmation(app, |app, proceed| {
+        if proceed {
+            cleanup_child_processes(app);
+            app.exit(0);
+        }
+    });
 }
 
 fn cleanup_child_processes(app: &tauri::AppHandle) {
@@ -259,6 +298,126 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+#[cfg(target_os = "macos")]
+const APP_QUIT_MENU_ID: &str = "app-quit";
+
+/// Replace the predefined Quit with our own item, so Cmd+Q can be confirmed:
+/// tao terminates on `applicationWillTerminate` and never emits ExitRequested.
+#[cfg(target_os = "macos")]
+fn setup_quit_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = app.handle();
+    let menu = tauri::menu::Menu::default(handle)?;
+    let Some(app_menu) = menu
+        .items()?
+        .first()
+        .and_then(|item| item.as_submenu().cloned())
+    else {
+        return Ok(());
+    };
+    if let Some(quit) = app_menu.items()?.last() {
+        app_menu.remove(quit)?;
+    }
+    let quit = MenuItemBuilder::with_id(APP_QUIT_MENU_ID, "Quit Unsloth")
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+    app_menu.append(&quit)?;
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        if event.id() == APP_QUIT_MENU_ID {
+            confirm_then_quit(app);
+        }
+    });
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+static TERMINATE_APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "macos")]
+extern "C-unwind" fn application_should_terminate(
+    _this: *mut objc2::runtime::AnyObject,
+    _cmd: objc2::runtime::Sel,
+    _sender: *mut objc2::runtime::AnyObject,
+) -> usize {
+    const NS_TERMINATE_CANCEL: usize = 0;
+    const NS_TERMINATE_NOW: usize = 1;
+    const NS_TERMINATE_LATER: usize = 2;
+
+    let Some(app) = TERMINATE_APP_HANDLE.get() else {
+        return NS_TERMINATE_NOW;
+    };
+    if !install_is_active(app) && !training_is_active(app) {
+        return NS_TERMINATE_NOW;
+    }
+    // NSTerminateLater keeps a logout/restart/shutdown pending while the user
+    // decides; cancelling here would deny it before they had answered, so a
+    // confirmed quit would still leave the logout aborted.
+    if spawn_quit_confirmation(app, |app, proceed| {
+        if proceed {
+            cleanup_child_processes(app);
+        }
+        reply_to_termination_request(app, proceed);
+    }) {
+        NS_TERMINATE_LATER
+    } else {
+        // Another quit path already has the dialog up; deny this request
+        // rather than promise a reply nobody will send.
+        NS_TERMINATE_CANCEL
+    }
+}
+
+/// Deliver the NSTerminateLater verdict. AppKit expects it on the main thread;
+/// if the main loop is already gone, so is the pending termination request.
+#[cfg(target_os = "macos")]
+fn reply_to_termination_request(app: &tauri::AppHandle, proceed: bool) {
+    use objc2::runtime::{AnyObject, Bool};
+
+    let result = app.run_on_main_thread(move || unsafe {
+        let nsapp: *mut AnyObject =
+            objc2::msg_send![objc2::class!(NSApplication), sharedApplication];
+        let () = objc2::msg_send![nsapp, replyToApplicationShouldTerminate: Bool::new(proceed)];
+    });
+    if let Err(error) = result {
+        warn!("Could not reply to the pending termination request: {error}");
+    }
+}
+
+/// Dock quits, logout and AppleScript quits ask the delegate via
+/// `applicationShouldTerminate:`, which tao leaves unimplemented, so they
+/// terminate without reaching the menu handler above. Add the missing method to
+/// tao's delegate: when a run is active the answer is deferred with
+/// NSTerminateLater until the user confirms, otherwise keep the stock path
+/// (`applicationWillTerminate` -> RunEvent::Exit -> cleanup).
+#[cfg(target_os = "macos")]
+fn setup_terminate_interception(app: &tauri::App) {
+    use objc2::ffi::{class_addMethod, object_getClass};
+    use objc2::runtime::{AnyObject, Imp, Sel};
+
+    let _ = TERMINATE_APP_HANDLE.set(app.handle().clone());
+    unsafe {
+        let nsapp: *mut AnyObject =
+            objc2::msg_send![objc2::class!(NSApplication), sharedApplication];
+        let delegate: *mut AnyObject = objc2::msg_send![nsapp, delegate];
+        if delegate.is_null() {
+            warn!("No NSApplication delegate; external quits will not be confirmed");
+            return;
+        }
+        let imp: Imp = std::mem::transmute(
+            application_should_terminate
+                as extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject) -> usize,
+        );
+        let added = class_addMethod(
+            object_getClass(delegate).cast_mut(),
+            objc2::sel!(applicationShouldTerminate:),
+            imp,
+            c"Q@:@".as_ptr(),
+        );
+        if !added.as_bool() {
+            warn!("Could not hook applicationShouldTerminate; external quits will not be confirmed");
+        }
+    }
+}
+
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let open = MenuItemBuilder::with_id("open", "Open Unsloth").build(app)?;
     let toggle = MenuItemBuilder::with_id("toggle", "Start/Stop Server").build(app)?;
@@ -276,23 +435,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             "toggle" => {
                 let _ = app.emit("tray-toggle-server", ());
             }
-            "quit" => {
-                // Run cleanup off the menu callback, but only exit after the
-                // backend tree has been reaped. Exiting first can terminate this
-                // process while a detached cleanup thread is still waiting,
-                // leaving the backend orphaned.
-                let app_handle = app.clone();
-                std::thread::spawn(move || {
-                    if !confirm_quit_during_install(&app_handle) {
-                        return;
-                    }
-                    if !confirm_quit_during_training(&app_handle) {
-                        return;
-                    }
-                    cleanup_child_processes(&app_handle);
-                    app_handle.exit(0);
-                });
-            }
+            "quit" => confirm_then_quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -393,6 +536,11 @@ fn main() {
             }
             #[cfg(any(target_os = "windows", target_os = "linux"))]
             setup_custom_titlebar(app)?;
+            #[cfg(target_os = "macos")]
+            {
+                setup_quit_menu(app)?;
+                setup_terminate_interception(app);
+            }
             setup_tray(app)?;
             #[cfg(unix)]
             setup_unix_termination_signals(app)?;
