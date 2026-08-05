@@ -27,6 +27,7 @@ from hub.utils.hf_cache_state import (
     repo_cache_dir_name,
 )
 from hub.utils.gguf import (
+    GgufVariantInfo,
     extract_quant_label,
     iter_hf_cache_snapshots,
     is_big_endian_gguf_path,
@@ -530,6 +531,22 @@ def _mark_empty_dir_cleanables(
     return response.model_copy(update = {"variants": variants})
 
 
+def _direct_gguf_loads(path: Path) -> bool:
+    """Whether the load path takes *path* itself as the model.
+
+    ``detect_gguf_model`` refuses the companions -- mmproj, an MTP/dspark
+    drafter -- and big-endian builds, reading the name together with its
+    immediate parent, so a row for one of those would offer a load that
+    cannot happen. Judge them the same way.
+    """
+    context = f"{path.parent.name}/{path.name}"
+    return not (
+        _is_mmproj_filename(path.name)
+        or _is_mtp_drafter_path(context)
+        or is_big_endian_gguf_path(context, extract_quant_label(context))
+    )
+
+
 def _complete_quants_under(snapshot: str):
     """Quants whose shards are all present under *snapshot*, or None if unknown.
 
@@ -703,12 +720,50 @@ async def get_gguf_variants_answer(
                 return response
             return response.model_copy(update = {"variants": [*response.variants, *extra]})
 
-        # Local directory path (e.g. LM Studio models) — scan filesystem
-        if is_local_path(repo_id):
+        # Local directory path (e.g. LM Studio models) — scan filesystem.
+        # Load-path parity: ModelConfig.from_identifier resolves identifiers
+        # existence-first, so a marker-less relative name that exists for this
+        # process is a local model, not a Hub id, and a direct .gguf file is
+        # loadable without the metadata siblings the directory scan requires.
+        local_target = None
+        try:
+            probe = Path(repo_id).expanduser()
+            if is_local_path(repo_id) or probe.exists():
+                local_target = probe
+        except OSError:
+            local_target = None
+        if local_target is not None:
             variants, has_vision = list_local_gguf_variants(repo_id)
-            answered_from[0] = repo_id
             # The load id is this path, so a quant offered here has to resolve here.
-            return _local_response(repo_id, variants, has_vision, _complete_quants_under(repo_id))
+            complete = _complete_quants_under(repo_id)
+            if (
+                not variants
+                and local_target.is_file()
+                and local_target.suffix.lower() == ".gguf"
+                and _direct_gguf_loads(local_target)
+            ):
+                # A .gguf file whose parent carries no config/adapter/export
+                # marker is skipped by the directory scan but still loads via
+                # detect_gguf_model; only then fall back to the file itself, so
+                # a marked parent keeps its sibling quants and vision flag.
+                try:
+                    size = local_target.stat().st_size
+                except OSError:
+                    size = 0
+                variants = [
+                    GgufVariantInfo(
+                        filename = local_target.name,
+                        quant = extract_quant_label(local_target.name),
+                        size_bytes = size,
+                    )
+                ]
+                # The shard scan resolves a file to its marked parent, so an
+                # unmarked one leaves it walking a file: it answers "no complete
+                # quant" and the row this file IS would read as not downloaded.
+                # Nothing to judge here, so report it as the load sees it.
+                complete = None
+            answered_from[0] = repo_id
+            return _local_response(repo_id, variants, has_vision, complete)
 
         # Reject invalid remote repo_ids up front (like download/delete) so a
         # malformed id returns 400 instead of a 500 from the HF client.

@@ -1318,6 +1318,9 @@ def fake_studio(tmp_path, monkeypatch):
     monkeypatch.setattr(start, "find_studio_server", lambda: BASE)
     # Identity handshake has its own tests; trust the loopback server here.
     monkeypatch.setattr(start, "verify_studio_identity", lambda base: True)
+    # Hub listing unavailable: the Codex preflight defers to the stubbed
+    # post-connect check instead of calling the live Hub from tests.
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
     # _studio_token / api-keys are faked so the mint flow stays offline.
     monkeypatch.setattr(start, "_studio_token", lambda: "jwt-token")
     monkeypatch.setattr(start, "_http_json", http_json)
@@ -3840,9 +3843,9 @@ def test_startup_failure_output_redacts_minted_key(monkeypatch, tmp_path, capsys
 
 
 def test_codex_preflight_failure_tears_down_auto_served(fake_studio, monkeypatch):
-    # The Codex GGUF preflight runs after _connect may have auto-started a server but
-    # before _run's teardown finally, so a preflight rejection must not leave the server
-    # holding the port/GPU (waiting on the atexit backstop).
+    # Listing unavailable: the check falls back to post-connect and must still
+    # tear down an auto-started server instead of leaving it to atexit.
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
     monkeypatch.setattr(start, "find_studio_server", lambda: None)
     started = {}
     fake = SimpleNamespace(pid = 999, poll = lambda: None)
@@ -6003,3 +6006,515 @@ def test_native_resume_flag_passes_through_unchanged(fake_studio, monkeypatch):
     # Unsloth never auto-appends its own resume token when the user drives resume.
     assert captured["command"].count("--resume") == 1
     assert "--continue" not in captured["command"]
+
+
+def _fake_hub_listing(monkeypatch, files_by_repo):
+    monkeypatch.delenv("UNSLOTH_STUDIO_URL", raising = False)
+    monkeypatch.setattr(start, "find_studio_server", lambda: None)
+    calls = []
+
+    def fake(repo):
+        calls.append(repo)
+        return files_by_repo.get(repo)
+
+    monkeypatch.setattr(start, "_hub_gguf_files", fake)
+    return calls
+
+
+def test_codex_preflight_rejects_non_gguf_repo(monkeypatch, capsys):
+    _fake_hub_listing(monkeypatch, {"mlx-community/Qwen3-0.6B-4bit": []})
+    with pytest.raises(typer.Exit) as excinfo:
+        start._preflight_codex_gguf("mlx-community/Qwen3-0.6B-4bit")
+    assert excinfo.value.exit_code == 1
+    err = capsys.readouterr().err
+    assert "Codex needs a GGUF model" in err
+    assert "Try:" not in err
+
+
+def test_codex_preflight_passes_gguf_repo_and_splits_variant(monkeypatch):
+    calls = _fake_hub_listing(monkeypatch, {"unsloth/Qwen3-0.6B-GGUF": ["Qwen3-0.6B-Q4_K_M.gguf"]})
+    start._preflight_codex_gguf("unsloth/Qwen3-0.6B-GGUF:Q4_K_M")
+    assert calls == ["unsloth/Qwen3-0.6B-GGUF"]
+
+
+def test_codex_preflight_defers_when_listing_unavailable(monkeypatch):
+    _fake_hub_listing(monkeypatch, {})
+    start._preflight_codex_gguf("owner/private-model")
+
+
+def test_codex_preflight_skips_paths_and_empty_model(monkeypatch):
+    calls = _fake_hub_listing(monkeypatch, {})
+    start._preflight_codex_gguf("./models/foo.gguf")
+    start._preflight_codex_gguf(None)
+    assert calls == []
+
+
+def test_codex_preflight_skips_remote_studio(monkeypatch):
+    # A one-slash server-side path on a remote Unsloth can look like a hub id;
+    # the preflight must not reject it from the local machine.
+    calls = _fake_hub_listing(monkeypatch, {"models/qwen-finetune": []})
+    monkeypatch.setenv("UNSLOTH_STUDIO_URL", "http://studio.example:8888")
+    start._preflight_codex_gguf("models/qwen-finetune")
+    assert calls == []
+
+
+def test_codex_gguf_failure_suggests_only_a_verified_sibling(monkeypatch, capsys):
+    _fake_hub_listing(monkeypatch, {"owner/model-GGUF": ["model-Q4_K_M.gguf"]})
+    with pytest.raises(typer.Exit):
+        start._fail_codex_needs_gguf("owner/model")
+    assert "Try: unsloth start codex --model owner/model-GGUF" in capsys.readouterr().err
+
+
+def test_hub_gguf_files_parses_listing(monkeypatch):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+    payload = {"siblings": [{"rfilename": "README.md"}, {"rfilename": "model-Q4_K_M.GGUF"}]}
+    monkeypatch.setattr(
+        start.urllib.request,
+        "urlopen",
+        lambda request, timeout: io.BytesIO(json.dumps(payload).encode()),
+    )
+    assert start._hub_gguf_files("owner/model") == ["model-Q4_K_M.GGUF"]
+
+
+def test_hub_gguf_files_unknown_on_error_or_empty_listing(monkeypatch):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+
+    def unauthorized(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 401, "unauthorized", None, None)
+
+    monkeypatch.setattr(start.urllib.request, "urlopen", unauthorized)
+    assert start._hub_gguf_files("owner/missing") is None
+    monkeypatch.setattr(
+        start.urllib.request, "urlopen", lambda request, timeout: io.BytesIO(b'{"siblings": []}')
+    )
+    assert start._hub_gguf_files("owner/empty") is None
+
+
+def test_codex_rejects_non_gguf_model_before_connect(monkeypatch):
+    monkeypatch.delenv("UNSLOTH_STUDIO_URL", raising = False)
+    monkeypatch.setattr(start, "find_studio_server", lambda: None)
+    monkeypatch.setattr(start.shutil, "which", lambda _: "/usr/local/bin/codex")
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: [])
+    monkeypatch.setattr(
+        start, "_connect", lambda *a, **k: pytest.fail("preflight must run before connect")
+    )
+    result = CliRunner().invoke(
+        start.start_app, ["codex", "--model", "mlx-community/Qwen3-0.6B-4bit"]
+    )
+    assert result.exit_code == 1
+    assert "Codex needs a GGUF model" in result.output
+
+
+def test_codex_preflight_normalizes_ownerless_shorthand(monkeypatch):
+    calls = _fake_hub_listing(monkeypatch, {"unsloth/Qwen3-0.6B": []})
+    with pytest.raises(typer.Exit):
+        start._preflight_codex_gguf("Qwen3-0.6B")
+    assert calls[0] == "unsloth/Qwen3-0.6B"
+
+
+def test_codex_preflight_shorthand_skips_existing_local_dir(monkeypatch, tmp_path):
+    calls = _fake_hub_listing(monkeypatch, {})
+    (tmp_path / "Qwen3-0.6B").mkdir()
+    monkeypatch.chdir(tmp_path)
+    start._preflight_codex_gguf("Qwen3-0.6B")
+    assert calls == []
+
+
+def test_hub_gguf_files_ignores_auxiliary_ggufs(monkeypatch):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+    payload = {
+        "siblings": [
+            {"rfilename": "mmproj-F16.gguf"},
+            {"rfilename": "mtp-gemma.gguf"},
+            {"rfilename": "MTP/gemma-Q8_0-MTP.gguf"},
+            {"rfilename": "README.md"},
+        ]
+    }
+    monkeypatch.setattr(
+        start.urllib.request,
+        "urlopen",
+        lambda request, timeout: io.BytesIO(json.dumps(payload).encode()),
+    )
+    assert start._hub_gguf_files("owner/mmproj-pack") == []
+
+
+def test_hub_gguf_files_ignores_dspark_and_dflash_drafters(monkeypatch):
+    # Mirrors hub.utils.gguf.is_mtp_drafter_path: DSpark/DFlash drafters are
+    # companions, matched by basename prefix (all three kinds) or by an exact
+    # parent dir (mtp/ and dspark/ only, since dflash/ is a real family name).
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+    payload = {
+        "siblings": [
+            {"rfilename": "DSpark-drafter-Q2K-Q8.gguf"},
+            {"rfilename": "dflash-drafter-Q8_0.gguf"},
+            {"rfilename": "dspark/DeepSeek-V4-Flash-Q8_0.gguf"},
+            # Family names, not companions: these ARE the model.
+            {"rfilename": "Qwen3.6-35B-A3B-DFlash-Q4_K_M.gguf"},
+            {"rfilename": "DFlash/Qwen3.6-27B-DFlash-Q4_K_M.gguf"},
+        ]
+    }
+    monkeypatch.setattr(
+        start.urllib.request,
+        "urlopen",
+        lambda request, timeout: io.BytesIO(json.dumps(payload).encode()),
+    )
+    assert start._hub_gguf_files("owner/dspark-pack") == [
+        "Qwen3.6-35B-A3B-DFlash-Q4_K_M.gguf",
+        "DFlash/Qwen3.6-27B-DFlash-Q4_K_M.gguf",
+    ]
+
+
+def test_hub_gguf_files_filters_root_big_endian_only(monkeypatch):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+    payload = {
+        "siblings": [
+            {"rfilename": "model-Q4_K_M-be.gguf"},
+            {"rfilename": "model-Q4_K_M_be.gguf"},
+            {"rfilename": "quants/model-be.gguf"},
+            {"rfilename": "model-belle.gguf"},
+        ]
+    }
+    monkeypatch.setattr(
+        start.urllib.request,
+        "urlopen",
+        lambda request, timeout: io.BytesIO(json.dumps(payload).encode()),
+    )
+    assert start._hub_gguf_files("owner/be-pack") == ["quants/model-be.gguf", "model-belle.gguf"]
+
+
+def test_codex_preflight_defers_to_running_server(monkeypatch):
+    # With a server running, identifiers resolve against its cwd/cache/token;
+    # the attach check asks the server instead of guessing from here.
+    calls = _fake_hub_listing(monkeypatch, {"mlx-community/Qwen3-0.6B-4bit": []})
+    monkeypatch.setattr(start, "find_studio_server", lambda: "http://127.0.0.1:8888")
+    start._preflight_codex_gguf("mlx-community/Qwen3-0.6B-4bit")
+    assert calls == []
+
+
+def _fake_variants(monkeypatch, responses):
+    urls = []
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        urls.append(url)
+        if isinstance(responses, Exception):
+            raise responses
+        return responses
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    return urls
+
+
+def test_codex_attach_check_rejects_on_empty_variants(monkeypatch, capsys):
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
+    _fake_variants(monkeypatch, {"variants": [], "has_vision": False})
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "mlx-community/Qwen3-0.6B-4bit")
+    assert "Codex needs a GGUF model" in capsys.readouterr().err
+
+
+def test_codex_attach_check_passes_on_variants(monkeypatch):
+    urls = _fake_variants(monkeypatch, {"variants": [{"quant": "Q4_K_M"}]})
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "unsloth/Qwen3-0.6B-GGUF:Q4_K_M")
+    assert "repo_id=unsloth%2FQwen3-0.6B-GGUF" in urls[0]
+
+
+def test_codex_attach_check_rejects_unavailable_variant(monkeypatch, capsys):
+    # llama.cpp kills the resident server before it resolves the quant, so a
+    # typo'd quant on a real GGUF repo evicts and then fails the download.
+    _fake_variants(monkeypatch, {"variants": [{"quant": "Q4_K_M"}, {"quant": "Q8_0"}]})
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "unsloth/Qwen3-0.6B-GGUF:Q4_KM")
+    err = capsys.readouterr().err
+    assert "no GGUF variant Q4_KM" in err
+    assert "Q4_K_M, Q8_0" in err
+
+
+@pytest.mark.parametrize(
+    "requested,rows",
+    [
+        # Case-insensitive, exactly as the load path compares quant labels.
+        ("q4_k_m", [{"quant": "Q4_K_M"}]),
+        # The load path falls back to a whole-token filename match, so a quant
+        # that is only part of a longer label still resolves.
+        ("Q4_K_XL", [{"quant": "UD-Q4_K_XL", "filename": "Qwen3-0.6B-UD-Q4_K_XL.gguf"}]),
+        # An answer that carries neither field cannot disprove anything.
+        ("Q4_K_M", [{"size_bytes": 1}]),
+    ],
+)
+def test_codex_attach_check_passes_resolvable_variants(monkeypatch, requested, rows):
+    _fake_variants(monkeypatch, {"variants": rows})
+    start._attach_gguf_check_for_codex(BASE, "sk-test", f"unsloth/Qwen3-0.6B-GGUF:{requested}")
+
+
+def test_codex_attach_check_takes_the_variant_from_the_caller(monkeypatch):
+    # `--gguf-variant` never reaches the identifier, and _connect strips
+    # `repo:QUANT` before the gate runs, so the quant arrives as an argument.
+    _fake_variants(monkeypatch, {"variants": [{"quant": "Q8_0"}]})
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "unsloth/Qwen3-0.6B-GGUF", "Q4_K_M")
+
+
+def test_codex_attach_check_defers_on_server_error(monkeypatch):
+    _fake_variants(
+        monkeypatch,
+        urllib.error.HTTPError(f"{BASE}/api/models/gguf-variants", 404, "nope", None, None),
+    )
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "mlx-community/Qwen3-0.6B-4bit")
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "unsloth/Qwen3-0.6B-GGUF:Q4_K_M")
+
+
+def test_codex_attach_check_skips_without_model(monkeypatch):
+    urls = _fake_variants(monkeypatch, {"variants": []})
+    start._attach_gguf_check_for_codex(BASE, "sk-test", None)
+    assert urls == []
+
+
+@pytest.mark.parametrize("var", ["HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE"])
+def test_hub_gguf_files_skips_hub_when_offline(monkeypatch, var):
+    monkeypatch.setenv(var, "1")
+    monkeypatch.setattr(
+        start.urllib.request,
+        "urlopen",
+        lambda request, timeout: pytest.fail("offline mode must not call the hub"),
+    )
+    assert start._hub_gguf_files("owner/model") is None
+
+
+def test_codex_preflight_defers_bare_names_to_attached_server(monkeypatch):
+    # A bare name may be a directory relative to the attached server's cwd,
+    # invisible to this process; only the auto-start path may canonicalize it.
+    calls = _fake_hub_listing(monkeypatch, {"unsloth/Qwen3-0.6B": []})
+    monkeypatch.setattr(start, "find_studio_server", lambda: "http://127.0.0.1:8888")
+    monkeypatch.setattr(start, "verify_studio_identity", lambda base: True)
+    start._preflight_codex_gguf("Qwen3-0.6B")
+    assert calls == []
+
+
+def test_codex_gguf_failure_skips_hint_probe_for_non_hub_ids(monkeypatch, capsys):
+    monkeypatch.setattr(
+        start,
+        "_hub_gguf_files",
+        lambda repo: pytest.fail("must not probe the hub for a non-hub id"),
+    )
+    with pytest.raises(typer.Exit):
+        start._fail_codex_needs_gguf("models/Llama/customer-model")
+    assert "Try:" not in capsys.readouterr().err
+
+
+def test_codex_attach_rejects_before_load(fake_studio, monkeypatch):
+    inner = start._http_json
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        if "/api/models/gguf-variants" in url:
+            return {"variants": []}
+        if url.endswith("/api/inference/load"):
+            pytest.fail("rejected model must not be loaded")
+        return inner(method, url, token, payload, timeout, error)
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    result = CliRunner().invoke(
+        start.start_app, ["codex", "--model", "mlx-community/Qwen3-0.6B-4bit", "--no-launch"]
+    )
+    assert result.exit_code == 1
+    assert "Codex needs a GGUF model" in result.output
+
+
+def test_codex_attach_rejects_unavailable_variant_before_load(fake_studio, monkeypatch):
+    inner = start._http_json
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        if "/api/models/gguf-variants" in url:
+            return {"variants": [{"quant": "Q4_K_M"}]}
+        if url.endswith("/api/inference/load"):
+            pytest.fail("a quant the repo does not have must not evict the resident model")
+        return inner(method, url, token, payload, timeout, error)
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    result = CliRunner().invoke(
+        start.start_app,
+        ["codex", "--model", "unsloth/Qwen3-0.6B-GGUF:Q4_KM", "--no-launch"],
+    )
+    assert result.exit_code == 1
+    assert "no GGUF variant Q4_KM" in result.output
+
+
+def test_codex_attach_reuses_resident_model_without_preload_probe(fake_studio, monkeypatch):
+    # When the resident model already answers --model no load happens, so the
+    # pre-load gate must not run: a canonical empty listing would reject a
+    # session that works.
+    inner = start._http_json
+    probes = []
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        if "/api/models/gguf-variants" in url:
+            probes.append(url)
+            return {"variants": []}
+        if url.endswith("/api/inference/load"):
+            pytest.fail("the resident model already matches; no load is needed")
+        return inner(method, url, token, payload, timeout, error)
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    result = CliRunner().invoke(start.start_app, ["codex", "--model", MODEL["id"], "--no-launch"])
+    assert result.exit_code == 0, result.output
+    assert probes == []
+
+
+@pytest.mark.parametrize("endpoint", ["", "huggingface.co", "not a url"])
+def test_hub_gguf_files_unknown_on_malformed_endpoint(monkeypatch, endpoint):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising = False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising = False)
+    monkeypatch.setenv("HF_ENDPOINT", endpoint)
+    assert start._hub_gguf_files("owner/model") is None
+
+
+def test_codex_attach_check_skips_direct_gguf_files(monkeypatch):
+    monkeypatch.setattr(
+        start,
+        "_http_json",
+        lambda *a, **k: pytest.fail("a direct .gguf file needs no variants probe"),
+    )
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "/models/foo-Q4_K_M.gguf")
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "./local/model.GGUF")
+
+
+@pytest.mark.parametrize("kwargs", [{"serve": False}, {"launch": False}])
+def test_codex_preflight_skips_when_autostart_impossible(monkeypatch, kwargs):
+    calls = _fake_hub_listing(monkeypatch, {"mlx-community/Qwen3-0.6B-4bit": []})
+    start._preflight_codex_gguf("mlx-community/Qwen3-0.6B-4bit", **kwargs)
+    assert calls == []
+
+
+def test_codex_attach_check_normalizes_shorthand_after_raw_probe(monkeypatch, capsys):
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
+    urls = []
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        urls.append(url)
+        if "repo_id=Qwen3-0.6B" in url and "unsloth" not in url:
+            raise urllib.error.HTTPError(url, 400, "invalid repo_id", None, None)
+        return {"variants": []}
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "Qwen3-0.6B")
+    assert len(urls) == 2
+    assert "repo_id=unsloth%2FQwen3-0.6B" in urls[1]
+    assert "unsloth/Qwen3-0.6B" in capsys.readouterr().err
+
+
+def test_codex_attach_check_trusts_raw_server_dir_answer(monkeypatch):
+    urls = []
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        urls.append(url)
+        return {"variants": [{"quant": "Q4_K_M"}]}
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "local-gguf-dir")
+    assert len(urls) == 1
+
+
+def test_codex_attach_check_rejects_live_empty_raw_shorthand(monkeypatch, tmp_path, capsys):
+    # A live empty answer for the raw name is the server resolving it against
+    # its own cwd, which is exactly what the load does; unsloth/<name> is only
+    # reached when the raw name resolves to nothing, so it must not vouch here.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
+    urls = []
+
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        urls.append(url)
+        if "unsloth" in url:
+            return {"variants": [{"quant": "Q4_K_M"}]}
+        return {"variants": []}
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "Qwen3-0.6B-GGUF")
+    assert len(urls) == 1
+    assert "Qwen3-0.6B-GGUF" in capsys.readouterr().err
+
+
+def test_codex_attach_check_defers_shorthand_when_canonical_probe_errors(monkeypatch):
+    def http_json(
+        method,
+        url,
+        token,
+        payload = None,
+        timeout = 30,
+        error = None,
+    ):
+        raise urllib.error.HTTPError(url, 404, "nope", None, None)
+
+    monkeypatch.setattr(start, "_http_json", http_json)
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "Qwen3-0.6B")
+
+
+def test_codex_attach_check_probes_hub_shaped_gguf_ids(monkeypatch, capsys):
+    monkeypatch.setattr(start, "_hub_gguf_files", lambda repo: None)
+    urls = _fake_variants(monkeypatch, {"variants": []})
+    with pytest.raises(typer.Exit):
+        start._attach_gguf_check_for_codex(BASE, "sk-test", "owner/model.gguf")
+    assert len(urls) == 1
+    assert "owner%2Fmodel.gguf" in urls[0]
+
+
+def test_codex_attach_check_defers_when_raw_name_exists_locally(monkeypatch, tmp_path):
+    (tmp_path / "models" / "qwen").mkdir(parents = True)
+    monkeypatch.chdir(tmp_path)
+    _fake_variants(monkeypatch, {"variants": []})
+    start._attach_gguf_check_for_codex(BASE, "sk-test", "models/qwen")

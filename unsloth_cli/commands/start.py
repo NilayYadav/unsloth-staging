@@ -1521,6 +1521,7 @@ def _resolve_model(
     key: str,
     requested: Optional[str],
     load: LoadOptions = LoadOptions(),
+    preload_check = None,
 ) -> dict:
     models = _loaded_models(base, key)
     load_requested = False
@@ -1558,6 +1559,12 @@ def _resolve_model(
     )
     if requested and match is None:
         load_requested = True
+        # Only here is an evicting load certain. A pre-load gate must not reject
+        # a request the resident model already satisfies (e.g. a path-loaded
+        # GGUF advertised as a bare basename that collides with a non-GGUF
+        # unsloth/<name>).
+        if preload_check is not None:
+            preload_check(base, key, requested, load.gguf_variant)
         active = next((m for m in models if m.get("loaded") is not False), None)
         active_id = active.get("id") if active else None
         if active_id and not _model_id_matches(
@@ -1643,6 +1650,216 @@ def _resolve_model(
     return resident
 
 
+_HF_OFFLINE_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def _hf_offline() -> bool:
+    return any(
+        os.environ.get(var, "").strip().lower() in _HF_OFFLINE_TRUE_VALUES
+        for var in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")
+    )
+
+
+def _hub_gguf_files(repo: str) -> Optional[list]:
+    if _hf_offline():
+        return None
+    endpoint = os.environ.get("HF_ENDPOINT", "https://huggingface.co").rstrip("/")
+    try:
+        request = urllib.request.Request(
+            f"{endpoint}/api/models/{repo}",
+            headers = {"User-Agent": _USER_AGENT},
+        )
+        with urllib.request.urlopen(request, timeout = 10) as response:
+            info = json.loads(response.read().decode() or "{}")
+    except Exception:
+        return None
+    siblings = info.get("siblings")
+    if not isinstance(siblings, list) or not siblings:
+        return None
+    names = [s.get("rfilename") for s in siblings if isinstance(s, dict)]
+    ggufs = [n for n in names if isinstance(n, str) and n.lower().endswith(".gguf")]
+    return [n for n in ggufs if not _is_auxiliary_gguf(n)]
+
+
+# Mirrors hub.utils.gguf._DRAFTER_KINDS / _DRAFTER_DIR_KINDS: dspark and dflash
+# are the same DeepSeek V4 Flash drafter (its folder and its architecture), and
+# dflash/ as a directory is a family name a user picks for real weights, so only
+# mtp/ and dspark/ count as a publisher's companion folder.
+_DRAFTER_KINDS = ("mtp", "dspark", "dflash")
+_DRAFTER_DIR_KINDS = ("mtp", "dspark")
+
+
+def _is_auxiliary_gguf(filename: str) -> bool:
+    # Vision projectors, separate-file drafters and big-endian builds are not
+    # loadable weights; mirrors the server's detect_gguf_model_remote filtering
+    # (hub.utils.gguf.is_mtp_drafter_path). Drafters match on the basename
+    # prefix, or on an exact parent directory for the companion-only kinds,
+    # never as a substring: the kind names double as family names, so
+    # Qwen3.6-35B-A3B-DFlash-Q4_K_M.gguf IS the model. Only the root-level
+    # trailing -be form is filtered: the server's fuller big-endian check needs
+    # quant context the CLI does not mirror, and an over-broad copy here would
+    # reject repos the server can load.
+    p = filename.lower().replace("\\", "/")
+    parts = [segment for segment in p.split("/") if segment]
+    if not parts:
+        return False
+    name, parents = parts[-1], parts[:-1]
+    if "mmproj" in p:
+        return True
+    if any(name.startswith(f"{kind}-") for kind in _DRAFTER_KINDS):
+        return True
+    if any(kind in parents for kind in _DRAFTER_DIR_KINDS):
+        return True
+    stem = name.rsplit(".", 1)[0]
+    return not parents and stem.endswith(("-be", "_be"))
+
+
+def _answer_offers_variant(variants: list, variant: str) -> bool:
+    """Whether a live variants answer can resolve *variant* to a file.
+
+    Mirrors llama.cpp's own resolution -- the quant label first, then the
+    whole-token filename match it falls back to -- case-insensitively, which is
+    as loose as that resolution gets: a label differing by a separator resolves
+    to nothing there either. A row carrying neither field vouches for the
+    request, so a sparser answer never blocks a load this gate cannot disprove.
+    """
+    wanted = str(variant).strip().lower()
+    if not wanted:
+        return True
+    token = re.compile(r"(?<![a-z0-9])" + re.escape(wanted) + r"(?![a-z0-9])")
+    for row in variants:
+        if not isinstance(row, dict):
+            return True
+        quant = row.get("quant")
+        filename = row.get("filename")
+        if not isinstance(quant, str) and not isinstance(filename, str):
+            return True
+        if isinstance(quant, str) and quant.strip().lower() == wanted:
+            return True
+        if isinstance(filename, str) and token.search(filename.lower()):
+            return True
+    return False
+
+
+def _fail_codex_variant_missing(model_id: str, variant: str, variants: list) -> NoReturn:
+    offered = [
+        row.get("quant")
+        for row in variants
+        if isinstance(row, dict) and isinstance(row.get("quant"), str) and row.get("quant")
+    ]
+    message = f"{model_id} has no GGUF variant {variant}."
+    if offered:
+        message += " Available: " + ", ".join(dict.fromkeys(offered))
+    _fail(message)
+
+
+def _fail_codex_needs_gguf(model_id: str) -> NoReturn:
+    message = f"Codex needs a GGUF model served by llama-server, but {model_id} is not one."
+    guess = f"{model_id}-GGUF"
+    if "gguf" not in model_id.lower() and _is_hub_model_id(guess) and _hub_gguf_files(guess):
+        message += f" Try: unsloth start codex --model {guess}"
+    _fail(message)
+
+
+def _preflight_codex_gguf(
+    model: Optional[str],
+    *,
+    serve: bool = True,
+    launch: bool = True,
+) -> None:
+    # Hub-listing preflight for the auto-start path only. With a server
+    # running, identifiers are resolved against its cwd/cache/token, which this
+    # process cannot mirror; _attach_gguf_check_for_codex asks the server
+    # instead. Only a complete listing with no .gguf files rejects; unknown
+    # defers to the post-connect check so an unreachable hub never blocks.
+    # Mirror _require_studio's auto-start condition: when no start can happen,
+    # its "no running server" error should come first, without a hub probe.
+    if not (serve and launch and model):
+        return
+    expected = os.environ.get("UNSLOTH_STUDIO_URL", "http://127.0.0.1:8888").rstrip("/")
+    if not is_loopback_url(expected) or urlparse(expected).scheme != "http":
+        return
+    if find_studio_server() is not None:
+        return
+    repo, _ = _split_repo_variant(model)
+    if "/" not in repo and not _is_model_path(repo):
+        # The server canonicalizes owner-less shorthands to unsloth/<name>.
+        try:
+            if Path(os.path.expanduser(repo)).exists():
+                return
+        except OSError:
+            return
+        repo = f"unsloth/{repo}"
+    if not _is_hub_model_id(repo):
+        return
+    files = _hub_gguf_files(repo)
+    if files is not None and not files:
+        _fail_codex_needs_gguf(repo)
+
+
+def _attach_gguf_check_for_codex(
+    base: str,
+    key: str,
+    model: Optional[str],
+    variant: Optional[str] = None,
+) -> None:
+    # Attach path: the server resolves the identifier with its own cwd, cache
+    # and token, so ask it for the GGUF variants before the load evicts the
+    # resident model. An empty list from a live answer is definitive; any
+    # error (including an older server without the endpoint) defers.
+    if not model:
+        return
+    repo, inline_variant = _split_repo_variant(model)
+    # `--model repo:QUANT` is split before the gate runs, so the caller passes
+    # the quant on; a direct call still reads it off the identifier.
+    variant = variant or inline_variant
+    # A .gguf filesystem path is GGUF by definition; only the hub-id shape
+    # (owner/name.gguf, which the server also treats as a repo) gets probed.
+    if repo.lower().endswith(".gguf") and not (
+        repo.count("/") == 1
+        and not repo.startswith(("/", ".", "~"))
+        and ":" not in repo
+        and "\\" not in repo
+    ):
+        return
+    # Mirror the load path's shorthand precedence: the raw name first (it may
+    # be a directory relative to the server's cwd), then the unsloth/<name>
+    # canonical form the load falls back to only when the raw name resolves to
+    # nothing. A live answer is the server's own resolution of that exact id, so
+    # it settles the question: the canonical form must not vouch for a raw name
+    # the server already answered, or a load that lands on a non-GGUF directory
+    # in the server's cwd passes the gate and evicts the resident model. Only an
+    # error (an older server, an unreachable hub) falls through to the next form.
+    candidates = [repo]
+    if "/" not in repo and not _is_model_path(repo):
+        candidates.append(f"unsloth/{repo}")
+    for candidate in candidates:
+        try:
+            info = _http_json(
+                "GET", f"{base}/api/models/gguf-variants?{urlencode({'repo_id': candidate})}", key
+            )
+        except Exception:
+            continue
+        variants = info.get("variants") if isinstance(info, dict) else None
+        if isinstance(variants, list) and variants:
+            # The load resolves the quant only after it has torn the resident
+            # model down (llama.cpp kills the old process, then downloads), so
+            # a quant this answer cannot serve is settled here.
+            if variant and not _answer_offers_variant(variants, variant):
+                _fail_codex_variant_missing(candidate, variant, variants)
+            return
+        if isinstance(variants, list):
+            # Older servers classify marker-less relative paths as hub ids; a
+            # local hit for the raw name means it may be a server-side model
+            # the server would resolve from its own cwd, so defer.
+            try:
+                if Path(os.path.expanduser(repo)).exists():
+                    return
+            except OSError:
+                return
+            _fail_codex_needs_gguf(candidate)
+
+
 def _require_gguf_for_codex(base: str, key: str, model_id: str) -> None:
     # Codex always streams, and Unsloth only streams /v1/responses from llama-server.
     try:
@@ -1653,11 +1870,7 @@ def _require_gguf_for_codex(base: str, key: str, model_id: str) -> None:
         raise
     if status.get("is_gguf"):
         return
-    hint = model_id if "gguf" in model_id.lower() else f"{model_id}-GGUF"
-    _fail(
-        f"Codex needs a GGUF model served by llama-server, but {model_id} is on "
-        f"the transformers backend. Try: unsloth start codex --model {hint}"
-    )
+    _fail_codex_needs_gguf(model_id)
 
 
 _DYNAMIC_SECTIONS_FLAG = "--exclude-dynamic-system-prompt-sections"
@@ -2927,6 +3140,7 @@ def _connect(
     serve: bool = False,
     launch: bool = True,
     server_options: ServerOptions = ServerOptions(),
+    preload_check = None,
 ) -> tuple:
     # `--model org/name:QUANT` is shorthand for `--model org/name --gguf-variant QUANT`.
     # Split it before we match/serve so the attach path resolves against the already-loaded
@@ -2945,7 +3159,16 @@ def _connect(
         key = _agent_api_key(base, api_key, auto_started = server is not None)
         # A server we just started has exactly the requested model loaded, so resolve to
         # whatever it is serving instead of re-matching the raw --model string.
-        entry = _resolve_model(base, key, None if server is not None else model, load)
+        # An auto-started server already loaded its model; only an attach can
+        # still trigger an evicting load, so the pre-load check is handed to
+        # _resolve_model, which runs it only when that load is imminent.
+        entry = _resolve_model(
+            base,
+            key,
+            None if server is not None else model,
+            load,
+            preload_check = None if server is not None else preload_check,
+        )
     except BaseException:
         _shutdown_auto_served()
         raise
@@ -3725,12 +3948,14 @@ def codex(
     model, ctx.args[:] = _consume_positional_model(model, ctx.args)
     install_hint = _npm_install_hint("@openai/codex")
     _require_agent_for_launch("codex", install_hint, launch)
+    _preflight_codex_gguf(model, serve = serve, launch = launch)
     base, key, entry = _connect(
         api_key,
         model,
         LoadOptions(gguf_variant, max_seq_length, load_in_4bit, tensor_parallel, gpu_memory_mode),
         serve = serve,
         launch = launch,
+        preload_check = _attach_gguf_check_for_codex,
         server_options = ServerOptions(
             enable_tools = enable_tools,
             tool_call_healing = tool_call_healing,
