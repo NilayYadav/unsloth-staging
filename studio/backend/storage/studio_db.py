@@ -2386,8 +2386,11 @@ def sync_chat_messages(
     try:
         conn.execute("BEGIN IMMEDIATE")
         _ensure_chat_attachment_inventory_current(conn)
-        if not allow_research_update:
-            _guard_research_messages(conn, thread_id, messages)
+        # Research messages are server-managed: a thread sync keeps the server's
+        # record instead of rejecting the whole batch over client-side drift.
+        research_ids = _research_message_ids(conn, thread_id)
+        protected = set() if allow_research_update else research_ids
+        messages = [m for m in messages if str(m["id"]) not in protected]
         _raise_if_chat_message_thread_conflicts(
             conn,
             thread_id,
@@ -2453,11 +2456,9 @@ def sync_chat_messages(
                     (thread_id,),
                 ).fetchall()
             }
-            missing_ids = sorted(existing_ids - retained_ids)
-            if set(missing_ids) & _research_message_ids(conn, thread_id):
-                raise ChatMessageProtectedError(
-                    "Research prompts and responses cannot be deleted from their original thread"
-                )
+            # Update authorization is not delete authorization: research messages
+            # stay prune-exempt even for allow_research_update callers.
+            missing_ids = sorted(existing_ids - retained_ids - research_ids)
             for start in range(0, len(missing_ids), _SQLITE_IN_CHUNK_SIZE):
                 chunk = missing_ids[start : start + _SQLITE_IN_CHUNK_SIZE]
                 placeholders = ",".join("?" for _ in chunk)
