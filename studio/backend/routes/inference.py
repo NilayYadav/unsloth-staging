@@ -46,6 +46,7 @@ from core.inference.llama_admission import (
     LlamaAdmissionTimeout,
     get_llama_admission_queue,
     llama_admission_config_from_env,
+    peek_llama_admission_snapshot,
 )
 
 
@@ -3034,16 +3035,29 @@ def _monitor_usage(
     monitor_id: Optional[str],
     usage: Optional[dict],
     context_length = None,
+    *,
+    timings: Optional[dict] = None,
+    stop_reason: Optional[str] = None,
 ):
-    if not usage:
-        return
-    api_monitor.set_usage(
-        monitor_id,
-        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens"),
-        completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens"),
-        total_tokens = usage.get("total_tokens"),
-        context_length = context_length,
-    )
+    if usage:
+        api_monitor.set_usage(
+            monitor_id,
+            prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens"),
+            completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens"),
+            total_tokens = usage.get("total_tokens"),
+            context_length = context_length,
+        )
+    tok_per_sec = prompt_ms = None
+    if isinstance(timings, dict):
+        tok_per_sec = timings.get("predicted_per_second")
+        prompt_ms = timings.get("prompt_ms")
+    if tok_per_sec is not None or prompt_ms is not None or stop_reason is not None:
+        api_monitor.set_perf(
+            monitor_id,
+            tok_per_sec = tok_per_sec,
+            prompt_ms = prompt_ms,
+            stop_reason = stop_reason,
+        )
 
 
 def _monitor_call_text(name: Any, arguments: Any = None) -> str:
@@ -3081,21 +3095,42 @@ def _monitor_openai_chunk(
     monitor_id: Optional[str],
     data: dict,
     context_length = None,
+    streaming: bool = False,
 ):
     if not monitor_id:
         return
-    _monitor_usage(monitor_id, data.get("usage"), context_length)
     # Defensive: ignore malformed shapes so the helper never raises into the
     # streaming generator and aborts the user's response.
     choices = data.get("choices")
+    finish_reason = None
+    if isinstance(choices, list):
+        for choice in choices:
+            if isinstance(choice, dict) and choice.get("finish_reason"):
+                finish_reason = str(choice["finish_reason"])
+                break
+    timings = data.get("timings")
+    _monitor_usage(
+        monitor_id,
+        data.get("usage"),
+        context_length,
+        timings = timings if isinstance(timings, dict) else None,
+        stop_reason = finish_reason,
+    )
     if not isinstance(choices, list) or not choices:
         return
+    if isinstance(data, dict) and data.get("_toolEvent"):
+        # Hosted provider tool cards ride the chunk itself (sibling of choices)
+        # with an empty delta, and are output the client has already been shown.
+        api_monitor.mark_first_token(monitor_id)
     reply_parts: list[tuple[int, str]] = []
     for idx, choice in enumerate(choices):
         if not isinstance(choice, dict):
             continue
         delta = choice.get("delta") or {}
         message = choice.get("message") or {}
+        if isinstance(delta, dict) and delta.get("reasoning_content"):
+            api_monitor.mark_first_token(monitor_id)
+
         content = delta.get("content") if isinstance(delta, dict) else None
         if content:
             api_monitor.append_reply(monitor_id, content)
@@ -3118,11 +3153,12 @@ def _monitor_openai_chunk(
     if not reply_parts:
         return
     if len(choices) == 1:
-        api_monitor.append_reply(monitor_id, reply_parts[0][1])
+        api_monitor.append_reply(monitor_id, reply_parts[0][1], stamp_first_token = streaming)
         return
     api_monitor.append_reply(
         monitor_id,
         "\n\n".join(f"Choice {idx + 1}:\n{text}" for idx, text in reply_parts),
+        stamp_first_token = streaming,
     )
 
 
@@ -3172,7 +3208,7 @@ def _monitor_openai_sse_line(
         if error_message:
             api_monitor.fail(monitor_id, error_message)
             return "error"
-        _monitor_openai_chunk(monitor_id, data, context_length)
+        _monitor_openai_chunk(monitor_id, data, context_length, streaming = True)
     return None
 
 
@@ -3236,6 +3272,8 @@ def _monitor_anthropic_payload(
     if event_type == "content_block_delta":
         delta = data.get("delta") or {}
         text = delta.get("text") if isinstance(delta, dict) else None
+        if isinstance(delta, dict) and delta.get("type") == "thinking_delta":
+            api_monitor.mark_first_token(monitor_id)
         if isinstance(text, str) and text:
             api_monitor.append_reply(monitor_id, text)
         elif isinstance(delta, dict) and delta.get("type") == "input_json_delta":
@@ -3258,6 +3296,9 @@ def _monitor_anthropic_payload(
                 _ANTHROPIC_MONITOR_TOOL_BLOCKS.pop(monitor_id, None)
         return None
     if event_type == "message_delta":
+        delta = data.get("delta")
+        if isinstance(delta, dict) and delta.get("stop_reason"):
+            api_monitor.set_perf(monitor_id, stop_reason = str(delta["stop_reason"]))
         _monitor_anthropic_usage(monitor_id, data.get("usage"), context_length)
         return None
     if event_type == "error":
@@ -3319,6 +3360,8 @@ def _monitor_anthropic_json_response(
     text = _monitor_anthropic_content_blocks(data.get("content"))
     if text:
         api_monitor.set_reply(monitor_id, text)
+    if data.get("stop_reason"):
+        api_monitor.set_perf(monitor_id, stop_reason = str(data["stop_reason"]))
     _monitor_anthropic_usage(monitor_id, data.get("usage"), context_length)
     api_monitor.finish(monitor_id)
 
@@ -3431,6 +3474,61 @@ def _close_load_event(
     opened on the request's model_path, which may be an HF snapshot dir."""
     api_monitor.relabel(entry_id, _lifecycle_model_label(model, variant))
     api_monitor.finish(entry_id)
+
+
+# Requests proxied straight to llama-server without admission (/v1/completions,
+# /v1/embeddings) still occupy slots; counted here so the monitor includes them.
+_direct_llama_inflight = 0
+_direct_llama_inflight_lock = threading.Lock()
+
+
+def _direct_llama_request_started() -> None:
+    global _direct_llama_inflight
+    with _direct_llama_inflight_lock:
+        _direct_llama_inflight += 1
+
+
+def _direct_llama_request_finished() -> None:
+    global _direct_llama_inflight
+    with _direct_llama_inflight_lock:
+        _direct_llama_inflight = max(0, _direct_llama_inflight - 1)
+
+
+def _monitor_queue_state() -> Optional[dict]:
+    """Live slot/queue occupancy of the loaded llama-server, for the API monitor."""
+    # Disabled admission tracks nothing: its queues stay at the default capacity
+    # of 1 and never take leases, so a snapshot would misreport a multi-slot server.
+    if not llama_admission_config_from_env().enabled:
+        return None
+    llama_backend = get_llama_cpp_backend()
+    if not getattr(llama_backend, "is_loaded", False) or getattr(
+        llama_backend, "is_diffusion", False
+    ):
+        return None
+    direct = _direct_llama_inflight
+    snapshot = peek_llama_admission_snapshot(
+        str(getattr(llama_backend, "base_url", "llama-server"))
+    )
+    if snapshot is not None:
+        busy = snapshot.active + direct
+        active = min(snapshot.capacity, busy)
+        return {
+            "capacity": snapshot.capacity,
+            "active": active,
+            # Direct calls hold no lease, so anything past capacity is waiting
+            # inside llama-server and belongs with the queued work, not clamped
+            # away into a readout that looks idle.
+            "queued": snapshot.queued + max(0, busy - snapshot.capacity),
+            "free": max(0, snapshot.capacity - active),
+        }
+    capacity = _positive_int_or_none(getattr(llama_backend, "effective_parallel_slots", None)) or 1
+    active = min(capacity, direct)
+    return {
+        "capacity": capacity,
+        "active": active,
+        "queued": max(0, direct - capacity),
+        "free": capacity - active,
+    }
 
 
 def _monitor_active_model() -> Optional[str]:
@@ -7746,8 +7844,8 @@ async def get_api_monitor(current_subject: str = Depends(get_current_subject)):
     """Return recent OpenAI-compatible API activity for Unsloth."""
     # Off-loop: both helpers reach get_inference_backend(), whose first call waits on
     # hardware detection, and this is polled from first paint.
-    active_model, context_length = await asyncio.to_thread(
-        lambda: (_monitor_active_model(), _monitor_context_length())
+    active_model, context_length, queue = await asyncio.to_thread(
+        lambda: (_monitor_active_model(), _monitor_context_length(), _monitor_queue_state())
     )
     active_requests = api_monitor.active_count(subject = current_subject)
     if active_requests:
@@ -7767,6 +7865,7 @@ async def get_api_monitor(current_subject: str = Depends(get_current_subject)):
         "active_model": active_model,
         "context_length": context_length,
         "active_requests": active_requests,
+        "queue": queue,
         "logging_enabled": api_monitor.enabled,
         "entries": api_monitor.snapshot(include_details = False, subject = current_subject),
     }
@@ -9376,7 +9475,13 @@ async def _proxy_to_external_provider(
                 monitor_event = _monitor_openai_sse_line(monitor_id, line)
                 if monitor_event is None:
                     try:
-                        _monitor_openai_chunk(monitor_id, json.loads(line))
+                        # Only an SSE delta stream stamps a first token; a
+                        # stream:false provider can return the whole response
+                        # as one line, and stamping that reports end-to-end
+                        # latency as TTFT.
+                        _monitor_openai_chunk(
+                            monitor_id, json.loads(line), streaming = bool(payload.stream)
+                        )
                     except Exception:
                         pass
                 if monitor_event == "error":
@@ -10620,6 +10725,8 @@ async def openai_chat_completions(
 
                         if event["type"] in ("tool_start", "tool_end"):
                             if event["type"] == "tool_start":
+                                # The tool card is output the client sees, so a turn whose first action is a tool call is timed here, not from the answer after it.
+                                api_monitor.mark_first_token(monitor_id)
                                 for chunk in _flush_reasoning_extractor():
                                     yield chunk
                                 prev_text = ""
@@ -10655,6 +10762,7 @@ async def openai_chat_completions(
                             continue
                         reasoning_delta, visible_delta = reasoning_extractor.feed(new_text)
                         if reasoning_delta:
+                            api_monitor.mark_first_token(monitor_id)
                             yield _gguf_chat_delta_line(
                                 ChoiceDelta(reasoning_content = reasoning_delta)
                             )
@@ -10690,7 +10798,15 @@ async def openai_chat_completions(
                     )
                     if usage_line is not None:
                         yield usage_line
-                    _monitor_usage(monitor_id, _stream_usage, _monitor_context_length())
+                    _monitor_usage(
+                        monitor_id,
+                        _stream_usage,
+                        _monitor_context_length(),
+                        timings = _stream_timings,
+                        stop_reason = _clamp_finish_reason(_stream_finish)
+                        if _stream_finish
+                        else None,
+                    )
                     api_monitor.finish(
                         monitor_id, "cancelled" if cancel_event.is_set() else "completed"
                     )
@@ -10884,6 +11000,7 @@ async def openai_chat_completions(
                 full_text = ""
                 usage = None
                 finish = None
+                timings = None
                 gen = gguf_generate_with_tools()
                 try:
                     for event in gen:
@@ -10892,6 +11009,7 @@ async def openai_chat_completions(
                         if event.get("type") == "metadata":
                             usage = event.get("usage")
                             finish = event.get("finish_reason")
+                            timings = event.get("timings")
                         elif event.get("type") == "content":
                             # Content is cumulative within a turn and resets
                             # between turns, so the last event holds the final
@@ -10903,7 +11021,7 @@ async def openai_chat_completions(
                                 auto_heal_tool_calls = _gguf_auto_heal_tool_calls,
                                 enabled_tool_names = _gguf_display_tool_names,
                             )
-                    return full_text, usage, finish
+                    return full_text, usage, finish, timings
                 finally:
                     # Close the generator on early break/cancel so the underlying
                     # llama-server stream socket is released, like the SSE path.
@@ -10966,7 +11084,12 @@ async def openai_chat_completions(
                     cancel_event = cancel_event,
                 )
                 drain_task = asyncio.create_task(asyncio.to_thread(_drain_gguf_tool_loop))
-                full_text, completion_usage, completion_finish = await asyncio.shield(drain_task)
+                (
+                    full_text,
+                    completion_usage,
+                    completion_finish,
+                    completion_timings,
+                ) = await asyncio.shield(drain_task)
                 reasoning_text, visible_text = _extract_responses_reasoning(
                     full_text,
                     parse_think_markers = _responses_should_parse_think_markers(
@@ -11007,6 +11130,10 @@ async def openai_chat_completions(
                         "total_tokens": _prompt_tokens + _completion_tokens,
                     },
                     _monitor_context_length(),
+                    timings = completion_timings,
+                    stop_reason = _clamp_finish_reason(completion_finish)
+                    if completion_finish
+                    else None,
                 )
                 api_monitor.finish(
                     monitor_id, "cancelled" if cancel_event.is_set() else "completed"
@@ -11201,6 +11328,7 @@ async def openai_chat_completions(
                             continue
                         reasoning_delta, visible_delta = reasoning_extractor.feed(new_text)
                         if reasoning_delta:
+                            api_monitor.mark_first_token(monitor_id)
                             yield _gguf_chat_delta_line(
                                 ChoiceDelta(reasoning_content = reasoning_delta)
                             )
@@ -11241,7 +11369,15 @@ async def openai_chat_completions(
                     )
                     if usage_line is not None:
                         yield usage_line
-                    _monitor_usage(monitor_id, _stream_usage, _monitor_context_length())
+                    _monitor_usage(
+                        monitor_id,
+                        _stream_usage,
+                        _monitor_context_length(),
+                        timings = _stream_timings,
+                        stop_reason = _clamp_finish_reason(_stream_finish)
+                        if _stream_finish
+                        else None,
+                    )
                     api_monitor.finish(
                         monitor_id, "cancelled" if cancel_event.is_set() else "completed"
                     )
@@ -11552,6 +11688,8 @@ async def openai_chat_completions(
                     _prompt_tokens = 0
                     _sum_completion = 0
                     _prompt_details = None
+                    _last_timings = None
+                    _last_finish = None
                     for _idx in range(_n):
                         # Stop spawning the remaining choices once cancelled.
                         if cancel_event.is_set():
@@ -11564,6 +11702,8 @@ async def openai_chat_completions(
                                 if token.get("type") == "metadata":
                                     completion_usage = token.get("usage")
                                     completion_finish = token.get("finish_reason")
+                                    _last_timings = token.get("timings")
+                                    _last_finish = completion_finish
                                 continue
                             full_text = token
 
@@ -11600,6 +11740,8 @@ async def openai_chat_completions(
                         _prompt_tokens,
                         _sum_completion,
                         _prompt_details,
+                        _last_timings,
+                        _last_finish,
                     )
 
                 drain_task = asyncio.create_task(asyncio.to_thread(_drain_gguf_choices))
@@ -11610,6 +11752,8 @@ async def openai_chat_completions(
                     _prompt_tokens,
                     _sum_completion,
                     _prompt_details,
+                    _last_timings,
+                    _last_finish,
                 ) = await asyncio.shield(drain_task)
 
                 response = ChatCompletion(
@@ -11638,6 +11782,11 @@ async def openai_chat_completions(
                         "total_tokens": _prompt_tokens + _sum_completion,
                     },
                     _monitor_context_length(),
+                    # With n > 1 the counts are summed across choices while
+                    # _last_timings holds only the final one, so reporting its
+                    # speed beside those totals would be a number for neither.
+                    timings = _last_timings if len(_monitor_replies) <= 1 else None,
+                    stop_reason = _clamp_finish_reason(_last_finish) if _last_finish else None,
                 )
                 api_monitor.finish(monitor_id)
                 return _model_json_response(response)
@@ -11984,6 +12133,8 @@ async def openai_chat_completions(
 
                     if event["type"] in ("tool_start", "tool_end"):
                         if event["type"] == "tool_start":
+                            # Same as the GGUF loop: the tool card is visible output.
+                            api_monitor.mark_first_token(monitor_id)
                             # Flush reasoning before tool_start so the thinking block closes ahead of the card.
                             for _c in _sf_flush_reasoning():
                                 yield _c
@@ -12006,6 +12157,7 @@ async def openai_chat_completions(
                     # Split reasoning vs visible; only visible reaches the monitor.
                     reasoning_delta, visible_delta = reasoning_extractor.feed(new_text)
                     if reasoning_delta:
+                        api_monitor.mark_first_token(monitor_id)
                         yield _chat_reasoning_chunk(
                             completion_id, created, model_name, reasoning_delta
                         )
@@ -12031,7 +12183,14 @@ async def openai_chat_completions(
                     )
                     if usage_line is not None:
                         yield usage_line
-                    _monitor_usage(monitor_id, _stats.get("usage"))
+                    # This path always closes the client stream with "stop", so the
+                    # monitor records the same terminal reason instead of a blank.
+                    _monitor_usage(
+                        monitor_id,
+                        _stats.get("usage"),
+                        timings = _stats.get("timings"),
+                        stop_reason = "stop",
+                    )
                 api_monitor.finish(
                     monitor_id, "cancelled" if cancel_event.is_set() else "completed"
                 )
@@ -12123,7 +12282,14 @@ async def openai_chat_completions(
             api_monitor.set_reply(monitor_id, _visible_text)
             _stats = _sf_stats_holder.get("stats")
             if _stats:
-                _monitor_usage(monitor_id, _stats.get("usage"))
+                # The response this returns carries finish_reason "stop"; the
+                # monitor records the same instead of leaving the field blank.
+                _monitor_usage(
+                    monitor_id,
+                    _stats.get("usage"),
+                    timings = _stats.get("timings"),
+                    stop_reason = "stop",
+                )
             api_monitor.finish(monitor_id, "cancelled" if cancel_event.is_set() else "completed")
             _sf_msg_kwargs = {"content": _visible_text}
             if _reasoning_text:
@@ -12390,6 +12556,7 @@ async def openai_chat_completions(
                     # healer so tool markup inside a reasoning block is not promoted.
                     reasoning_delta, visible_delta = reasoning_extractor.feed(new_text)
                     if reasoning_delta:
+                        api_monitor.mark_first_token(monitor_id)
                         yield _chat_reasoning_chunk(
                             completion_id, created, model_name, reasoning_delta
                         )
@@ -12471,7 +12638,14 @@ async def openai_chat_completions(
                     )
                     if usage_line is not None:
                         yield usage_line
-                    _monitor_usage(monitor_id, _stats.get("usage"))
+                    # The route already told the client why it stopped; give the
+                    # monitor the same reason so its Stop reason is not blank here.
+                    _monitor_usage(
+                        monitor_id,
+                        _stats.get("usage"),
+                        timings = _stats.get("timings"),
+                        stop_reason = _finish,
+                    )
                 api_monitor.finish(
                     monitor_id, "cancelled" if cancel_event.is_set() else "completed"
                 )
@@ -12637,7 +12811,12 @@ async def openai_chat_completions(
             api_monitor.set_reply(monitor_id, _monitor_reply)
             _stats = stats_holder.get("stats")
             if _stats:
-                _monitor_usage(monitor_id, _stats.get("usage"))
+                _monitor_usage(
+                    monitor_id,
+                    _stats.get("usage"),
+                    timings = _stats.get("timings"),
+                    stop_reason = _finish,
+                )
             api_monitor.finish(monitor_id)
             return _model_json_response(response)
 
@@ -13139,6 +13318,7 @@ async def openai_completions(request: Request, current_subject: str = Depends(ge
             # honor stream_options.include_usage per event, while keeping SSE
             # framing and token bytes intact.
             _include_usage = bool((body.get("stream_options") or {}).get("include_usage"))
+            _direct_llama_request_started()
             client = httpx.AsyncClient(
                 timeout = _llama_streaming_generation_timeout(),
                 trust_env = False,
@@ -13243,6 +13423,7 @@ async def openai_completions(request: Request, current_subject: str = Depends(ge
                         client = client,
                     )
                 finally:
+                    _direct_llama_request_finished()
                     _tracker.__exit__(None, None, None)
 
         return _sse_streaming_response(_stream())
@@ -13255,6 +13436,7 @@ async def openai_completions(request: Request, current_subject: str = Depends(ge
         _client = _cancelable_nonstreaming_client()
         _tracker = _TrackedCancel(_cancel_event, model = monitor_model, kind = "completions")
         _tracker.__enter__()
+        _direct_llama_request_started()
         _cancel_watcher = asyncio.create_task(
             _await_cancel_or_disconnect_then_close_client(
                 cancel_event = _cancel_event,
@@ -13291,6 +13473,7 @@ async def openai_completions(request: Request, current_subject: str = Depends(ge
                 except Exception:
                     pass
             finally:
+                _direct_llama_request_finished()
                 _tracker.__exit__(None, None, None)
 
         if resp.status_code != 200:
@@ -13399,6 +13582,7 @@ async def openai_embeddings(request: Request, current_subject: str = Depends(get
         kind = "embeddings",
     )
     _tracker.__enter__()
+    _direct_llama_request_started()
     _cancel_watcher = asyncio.create_task(
         _await_cancel_or_disconnect_then_close_client(
             cancel_event = _cancel_event,
@@ -13435,12 +13619,13 @@ async def openai_embeddings(request: Request, current_subject: str = Depends(get
             except Exception:
                 pass
         finally:
+            _direct_llama_request_finished()
             _tracker.__exit__(None, None, None)
     if resp.status_code != 200:
         api_monitor.fail(monitor_id, resp.text[:500])
     else:
         try:
-            _monitor_usage(monitor_id, resp.json().get("usage"), _monitor_context_length())
+            _monitor_openai_chunk(monitor_id, resp.json(), _monitor_context_length())
         except Exception:
             pass
         api_monitor.finish(monitor_id)
@@ -14087,7 +14272,15 @@ async def _responses_non_streaming(
             instructions = payload.instructions,
         )
         api_monitor.set_reply(monitor_id, text or _monitor_tool_calls_text(tool_calls))
-        _monitor_usage(monitor_id, usage_data, _monitor_context_length())
+        _monitor_usage(
+            monitor_id,
+            usage_data,
+            _monitor_context_length(),
+            # The inner chat monitor is suppressed for this wrapper, so the
+            # perf stats only reach the row if they are read off the body here.
+            timings = body.get("timings") if isinstance(body, dict) else None,
+            stop_reason = (choices[0].get("finish_reason") if choices else None),
+        )
         api_monitor.finish(monitor_id)
         return _model_json_response(response)
     except asyncio.CancelledError:
@@ -14235,6 +14428,9 @@ async def _responses_stream(
         full_reasoning = ""
         input_tokens = 0
         output_tokens = 0
+        # Terminal reason from the chat chunks, applied once before finish so it
+        # does not depend on whether usage arrives before or after it.
+        stream_finish_reason: Optional[str] = None
         extractor = _ResponsesReasoningExtractor(
             parse_think_markers = _responses_should_parse_think_markers(chat_req, llama_backend)
         )
@@ -14722,6 +14918,8 @@ async def _responses_stream(
                 if not choices:
                     _apply_usage(chunk_data.get("usage"))
                     continue
+                if choices[0].get("finish_reason"):
+                    stream_finish_reason = choices[0]["finish_reason"]
 
                 delta = choices[0].get("delta", {}) or {}
                 reasoning_delta, visible_delta = extractor.feed(
@@ -14729,6 +14927,10 @@ async def _responses_stream(
                     delta.get("reasoning_content"),
                 )
                 if reasoning_delta:
+                    # The client has output in hand now, so the first-token
+                    # stamp belongs here; waiting for visible text would time a
+                    # reasoning turn from the end of its thinking block.
+                    api_monitor.mark_first_token(monitor_id)
                     for event in _ensure_reasoning_open():
                         yield event
                     full_reasoning += reasoning_delta
@@ -14759,6 +14961,11 @@ async def _responses_stream(
                     elif visible_delta:
                         healed_events = healer.feed(visible_delta)
                     visible_delta = ""
+                    if healed_events:
+                        # Healed output goes out here instead of through
+                        # append_reply below, so this is where the client first
+                        # sees a promoted tool call or its surrounding text.
+                        api_monitor.mark_first_token(monitor_id)
                     for event in _healed_event_sse(healed_events):
                         yield event
                 if visible_delta:
@@ -14778,6 +14985,10 @@ async def _responses_stream(
                         },
                     )
 
+                if delta.get("tool_calls"):
+                    # A tool call is output the client has already received, so
+                    # a turn that opens with one is timed from here too.
+                    api_monitor.mark_first_token(monitor_id)
                 for tc in delta.get("tool_calls") or []:
                     if (
                         payload.parallel_tool_calls is False
@@ -15032,6 +15243,8 @@ async def _responses_stream(
                 },
             },
         }
+        if stream_finish_reason:
+            api_monitor.set_perf(monitor_id, stop_reason = stream_finish_reason)
         api_monitor.finish(monitor_id)
         yield _sse("response.completed", completed_response)
 

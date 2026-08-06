@@ -768,7 +768,10 @@ class LlamaAdmissionQueue:
             key = self.key,
             capacity = self._capacity,
             active = self._held,
-            queued = len(self._waiters),
+            # Resume tickets are approved tool continuations waiting for a slot:
+            # they hold none yet, so a readout without them shows a full server
+            # with nothing queued while a confirmed tool call is still waiting.
+            queued = len(self._waiters) + len(self._unpark_tickets),
             # What another caller could actually take, so the admission log never
             # shows free slots next to queued requests: after a shrink, ids below
             # the new capacity can be free while holdovers still fill the ceiling.
@@ -793,6 +796,13 @@ def get_llama_admission_queue(key: str) -> LlamaAdmissionQueue:
             for stale_key in [k for k in _QUEUES if k != key and _QUEUES[k].is_idle()]:
                 del _QUEUES[stale_key]
         return queue
+
+
+def peek_llama_admission_snapshot(key: str) -> Optional[LlamaAdmissionSnapshot]:
+    """Read-only view of one queue's state; never creates a queue."""
+    with _QUEUES_LOCK:
+        queue = _QUEUES.get(key)
+    return queue.snapshot() if queue is not None else None
 
 
 def reset_llama_admission_queues() -> None:

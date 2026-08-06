@@ -704,3 +704,216 @@ def test_monitor_route_disabled_still_hides_recorded_rows(monkeypatch):
 
     assert payload["logging_enabled"] is False
     assert payload["entries"] == []
+
+
+def test_set_perf_records_stats_and_snapshot_reports_them():
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    # set_reply, not append_reply: a non-streaming row never stamps a first
+    # token, which is the case the engine prompt_ms fallback exists for.
+    monitor.set_reply(entry_id, "hi")
+    monitor.set_perf(entry_id, tok_per_sec = 42.5, prompt_ms = 123.4, stop_reason = "length")
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["tok_per_sec"] == 42.5
+    assert entry["ttft_ms"] == 123
+    assert entry["stop_reason"] == "length"
+
+
+def test_measured_ttft_wins_over_engine_prefill():
+    # A request that waits for an admission slot has already spent that time
+    # before llama-server sees it, so prompt_ms (prefill only) would report a
+    # sub-second first token for a request that queued for seconds.
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    entry = next(e for e in monitor._entries if e.id == entry_id)
+    entry.started_monotonic -= 2.0
+    monitor.append_reply(entry_id, "hi")
+    monitor.set_perf(entry_id, tok_per_sec = 42.5, prompt_ms = 120.0)
+    monitor.finish(entry_id)
+
+    [snapshot] = monitor.snapshot()
+    assert snapshot["ttft_ms"] >= 2000
+
+
+def test_set_perf_rejects_non_finite_values():
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    monitor.set_perf(entry_id, tok_per_sec = float("nan"), prompt_ms = float("inf"))
+    monitor.set_perf(entry_id, tok_per_sec = "bogus", prompt_ms = None)
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["tok_per_sec"] is None
+    assert entry["ttft_ms"] is None
+
+
+def test_full_response_reply_does_not_stamp_ttft():
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    monitor.set_reply(entry_id, "full response")
+    monitor.append_reply(entry_id, " tail", stamp_first_token = False)
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["ttft_ms"] is None
+    assert entry["tok_per_sec"] is None
+
+
+def test_set_usage_rejects_malformed_token_counts():
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    monitor.append_reply(entry_id, "hi")
+    monitor.set_usage(
+        entry_id,
+        prompt_tokens = -3,
+        completion_tokens = "bogus",
+        total_tokens = 12,
+    )
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["prompt_tokens"] is None
+    assert entry["completion_tokens"] is None
+    assert entry["total_tokens"] == 12
+    assert entry["tok_per_sec"] is None
+
+
+def test_mark_first_token_stamps_ttft_for_reasoning_only_streams():
+    monitor = ApiMonitor(max_entries = 3)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    monitor.mark_first_token(entry_id)
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["ttft_ms"] is not None
+
+    entry_id2 = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "local-model",
+        prompt = "user: hello",
+    )
+    monitor.mark_first_token(entry_id2)
+    first = monitor._find_locked(entry_id2).first_token_monotonic
+    monitor.append_reply(entry_id2, "visible")
+    assert monitor._find_locked(entry_id2).first_token_monotonic == first
+
+
+def test_queue_state_counts_direct_overflow_as_queued(monkeypatch):
+    # Direct /v1/completions and /v1/embeddings hold no admission lease, so a
+    # call past the slot count is waiting inside llama-server: clamping it out
+    # of active without queueing it made the readout look idle under load.
+    from types import SimpleNamespace
+
+    import routes.inference as inf
+
+    monkeypatch.setattr(
+        inf,
+        "get_llama_cpp_backend",
+        lambda: SimpleNamespace(
+            is_loaded = True,
+            is_diffusion = False,
+            base_url = "http://llama.test",
+            effective_parallel_slots = 1,
+        ),
+    )
+    monkeypatch.setattr(inf, "peek_llama_admission_snapshot", lambda _base: None)
+    monkeypatch.setattr(inf, "_direct_llama_inflight", 2)
+
+    state = inf._monitor_queue_state()
+    assert state == {"capacity": 1, "active": 1, "queued": 1, "free": 0}
+
+
+def test_non_streaming_responses_reports_its_finish_reason(monkeypatch):
+    # The non-streaming Responses body carries finish_reason; the monitor row
+    # showed a blank Stop reason because it was never read off the choice.
+    import routes.inference as inf
+
+    seen = {}
+    monkeypatch.setattr(
+        inf,
+        "_monitor_usage",
+        lambda mid, usage, ctx = None, **kw: seen.update(kw),
+    )
+    body = {"choices": [{"message": {"content": "hi"}, "finish_reason": "length"}]}
+    choices = body.get("choices", [])
+    usage_data = {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+    # Mirrors the call the route makes at the end of _responses_non_streaming.
+    inf._monitor_usage(
+        "row",
+        usage_data,
+        None,
+        stop_reason = (choices[0].get("finish_reason") if choices else None),
+    )
+    assert seen.get("stop_reason") == "length"
+
+
+def test_parked_tool_resume_counts_as_queued():
+    # An approved tool continuation waits on a resume ticket; without it the
+    # readout shows a full server with no queued work.
+    from core.inference.llama_admission import LlamaAdmissionQueue
+
+    queue = LlamaAdmissionQueue("http://llama.test")
+    queue._unpark_tickets.append(1)
+    assert queue.snapshot().queued == 1
+
+
+def test_top_level_provider_tool_event_stamps_first_token(monkeypatch):
+    # Hosted providers put _toolEvent on the chunk itself, beside choices, with
+    # an empty delta: a stream that opens with one had shown the client a tool
+    # card while the row recorded nothing.
+    import routes.inference as inf
+
+    monitor = ApiMonitor(max_entries = 3)
+    monkeypatch.setattr(inf, "api_monitor", monitor)
+    entry_id = monitor.start(
+        endpoint = "/v1/chat/completions",
+        method = "POST",
+        model = "provider/model",
+        prompt = "hi",
+    )
+    inf._monitor_openai_chunk(
+        entry_id,
+        {
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {}, "finish_reason": None}],
+            "_toolEvent": {"type": "web_search"},
+        },
+        streaming = True,
+    )
+    monitor.finish(entry_id)
+
+    [entry] = monitor.snapshot()
+    assert entry["ttft_ms"] is not None

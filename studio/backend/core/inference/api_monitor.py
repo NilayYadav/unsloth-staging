@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import threading
 import time
@@ -26,6 +27,14 @@ _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 def _api_monitor_disabled() -> bool:
     return os.environ.get(_DISABLE_ENV, "").strip().lower() in _TRUE_VALUES
+
+
+def _token_count_or_none(value: Any) -> Optional[int]:
+    try:
+        count = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return count if count >= 0 else None
 
 
 def _trim(text: Optional[str], limit: int) -> str:
@@ -71,6 +80,11 @@ class ApiMonitorEntry:
     shared: bool = False
     # 0-100 for a running download row; None when not applicable.
     progress: Optional[float] = None
+    # Monotonic stamp of the first reply text; snapshot() prefers it over engine timings.
+    first_token_monotonic: Optional[float] = None
+    prompt_ms: Optional[float] = None
+    tok_per_sec: Optional[float] = None
+    stop_reason: Optional[str] = None
 
     def snapshot(
         self,
@@ -89,6 +103,25 @@ class ApiMonitorEntry:
         context_usage = None
         if self.total_tokens is not None and self.context_length:
             context_usage = min(1.0, max(0.0, self.total_tokens / self.context_length))
+        ttft_ms = None
+        if self.first_token_monotonic is not None:
+            # Measured from the request arriving, so it includes the admission
+            # queue wait. The engine's prompt_ms covers prefill only and would
+            # report a sub-second first token for a request that queued for
+            # seconds, so it is only the fallback for rows that never stamped.
+            ttft_ms = max(0, int((self.first_token_monotonic - self.started_monotonic) * 1000))
+        elif self.prompt_ms is not None:
+            ttft_ms = max(0, int(self.prompt_ms))
+        tok_per_sec = self.tok_per_sec
+        if (
+            tok_per_sec is None
+            and self.completion_tokens
+            and self.finished_monotonic is not None
+            and self.first_token_monotonic is not None
+        ):
+            gen_s = self.finished_monotonic - self.first_token_monotonic
+            if gen_s > 0.05:
+                tok_per_sec = self.completion_tokens / gen_s
         payload = {
             "id": self.id,
             "endpoint": self.endpoint,
@@ -116,6 +149,9 @@ class ApiMonitorEntry:
             "event": self.event,
             "reason": self.reason,
             "progress": self.progress,
+            "ttft_ms": ttft_ms,
+            "tok_per_sec": round(tok_per_sec, 2) if tok_per_sec is not None else None,
+            "stop_reason": self.stop_reason,
         }
         if include_details:
             payload["prompt"] = self.prompt
@@ -258,13 +294,23 @@ class ApiMonitor:
             if entry is not None:
                 self._entries.remove(entry)
 
-    def append_reply(self, entry_id: Optional[str], text: str) -> None:
+    def append_reply(
+        self,
+        entry_id: Optional[str],
+        text: str,
+        *,
+        stamp_first_token: bool = True,
+    ) -> None:
         if not entry_id or not text:
             return
         with self._lock:
             entry = self._find_locked(entry_id)
             if entry is None:
                 return
+            # Only a streaming delta may stamp TTFT: a full-response append would
+            # report end-to-end latency as time to first token.
+            if stamp_first_token and entry.first_token_monotonic is None:
+                entry.first_token_monotonic = time.monotonic()
             # Preview is capped: once the "..." marker is present the head is
             # frozen, so skip the per-chunk re-concat (avoids O(n^2) on long
             # generations). A reply that landed exactly on the cap has no marker
@@ -277,6 +323,17 @@ class ApiMonitor:
             entry.reply = _trim(entry.reply + text, _MAX_REPLY_CHARS)
             entry.updated_at = time.time()
 
+    def mark_first_token(self, entry_id: Optional[str]) -> None:
+        """Stamp TTFT for a streaming delta the reply text does not capture
+        (e.g. reasoning tokens, which the monitor stores no text for)."""
+        if not entry_id:
+            return
+        with self._lock:
+            entry = self._find_locked(entry_id)
+            if entry is None or entry.first_token_monotonic is not None:
+                return
+            entry.first_token_monotonic = time.monotonic()
+
     def set_reply(self, entry_id: Optional[str], text: str) -> None:
         if not entry_id:
             return
@@ -285,6 +342,31 @@ class ApiMonitor:
             if entry is None:
                 return
             entry.reply = _trim(text, _MAX_REPLY_CHARS)
+            entry.updated_at = time.time()
+
+    def set_perf(
+        self,
+        entry_id: Optional[str],
+        *,
+        tok_per_sec: Optional[float] = None,
+        prompt_ms: Optional[float] = None,
+        stop_reason: Optional[str] = None,
+    ) -> None:
+        if not entry_id:
+            return
+        with self._lock:
+            entry = self._find_locked(entry_id)
+            if entry is None:
+                return
+            try:
+                if tok_per_sec is not None and math.isfinite(float(tok_per_sec)):
+                    entry.tok_per_sec = float(tok_per_sec)
+                if prompt_ms is not None and math.isfinite(float(prompt_ms)):
+                    entry.prompt_ms = float(prompt_ms)
+            except (TypeError, ValueError):
+                pass
+            if stop_reason is not None:
+                entry.stop_reason = str(stop_reason)
             entry.updated_at = time.time()
 
     def set_usage(
@@ -298,6 +380,12 @@ class ApiMonitor:
     ) -> None:
         if not entry_id:
             return
+        # Coerce before storing: these arrive from arbitrary provider payloads,
+        # and snapshot() does arithmetic on them.
+        prompt_tokens = _token_count_or_none(prompt_tokens)
+        completion_tokens = _token_count_or_none(completion_tokens)
+        total_tokens = _token_count_or_none(total_tokens)
+        context_length = _token_count_or_none(context_length)
         with self._lock:
             entry = self._find_locked(entry_id)
             if entry is None:
