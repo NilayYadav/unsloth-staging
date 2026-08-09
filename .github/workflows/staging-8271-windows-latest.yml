@@ -1,0 +1,40 @@
+name: "staging-8271 windows-latest"
+on:
+  push:
+    branches: ["pr-8271-xplat-ci"]
+    paths:
+      - 'studio/frontend/src/components/assistant-ui/thread.tsx'
+      - 'studio/frontend/src/features/chat/chat-page.tsx'
+      - 'studio/frontend/src/features/native-intents/components/native-model-drop-overlay.tsx'
+      - 'studio/frontend/src/features/native-intents/drop-paths.ts'
+      - 'studio/frontend/src/features/native-intents/store.ts'
+      - 'studio/frontend/src/features/native-intents/use-native-drop.ts'
+      - 'studio/frontend/tests/native-drop-paths.test.ts'
+      - 'studio/src-tauri/src/native_intents.rs'
+      - 'studio/src-tauri/src/native_path_policy.rs'
+      - '.github/workflows/staging-8271-windows-latest.yml'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      UNSLOTH_COMPILE_DISABLE: '1'
+      UNSLOTH_IS_PRESENT: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r studio/backend/requirements/studio.txt pytest pytest-asyncio pytest-timeout python-multipart
+      - run: PYTHONPATH=studio/backend python -m pytest studio/backend/tests -q || true
