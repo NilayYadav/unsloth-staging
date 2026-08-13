@@ -4,6 +4,7 @@
 import functools
 import re
 import threading
+import time
 from typing import Any, Literal, Optional, get_args
 from urllib.parse import unquote, urlsplit
 
@@ -645,6 +646,11 @@ _MAX_VARIANT_SUFFIX_LEN = 64
 # A limit under PATH_MAX would 422 the server sync while the local save succeeded.
 MAX_MODEL_OVERRIDE_KEY_LEN = 4096 + 1 + _MAX_VARIANT_SUFFIX_LEN
 
+# A GGUF variant identity (GgufVariantDetail.quant) can be a path-qualified internal
+# variant key, not just a bare quant suffix, and the load/download APIs accept the
+# full value -- bound it like a path so a successful load can always be recorded.
+MAX_GGUF_VARIANT_KEY_LEN = 4096
+
 # A list longer than MAX_GPU_ID cannot name a device the normalizer would store, so bound it
 # here and reject an oversized array at the boundary instead of walking it.
 MAX_GPU_IDS = MAX_GPU_ID + 1
@@ -962,6 +968,99 @@ def update_model_memory(
             log = logger,
         ) from exc
     return _model_memory_response()
+
+
+LAST_LOCAL_MODEL_SETTING_KEY = "last_local_model_load"
+_LAST_LOCAL_MODEL_LOCK = threading.Lock()
+# Client clocks stamp loads (a dropped PUT can only be ordered by the clock that
+# saw it), but a future-dated stamp must not freeze the record forever: cap the
+# lead a client clock may claim over server time.
+_LAST_LOCAL_MODEL_CLOCK_SLACK_MS = 5 * 60 * 1000
+
+
+class LastLocalModelPayload(BaseModel):
+    id: str = Field(..., min_length = 1, max_length = MAX_MODEL_OVERRIDE_KEY_LEN)
+    kind: Literal["gguf", "model"]
+    gguf_variant: Optional[str] = Field(default = None, max_length = MAX_GGUF_VARIANT_KEY_LEN)
+    # Epoch milliseconds of the load. Surfaces keep independent local shadows; a
+    # shadow whose fire-and-forget PUT was dropped compares against this to decide
+    # whether it is actually newer than what another surface stored since.
+    loaded_at: Optional[int] = Field(default = None, ge = 0)
+    # The client clock's reading when the request was sent: both stamps come from
+    # the same clock, so the request's skew (server_now - client_now) translates
+    # loaded_at into the server frame -- a fast or slow client clock can neither
+    # freeze the record nor strand its own device. Never persisted.
+    client_now: Optional[int] = Field(default = None, ge = 0)
+
+
+class LastLocalModelResponse(BaseModel):
+    id: Optional[str] = None
+    kind: Optional[Literal["gguf", "model"]] = None
+    gguf_variant: Optional[str] = None
+    loaded_at: Optional[int] = None
+    # Lets the client translate loaded_at back into its own frame when comparing
+    # against its local shadow stamps.
+    server_now: Optional[int] = None
+
+
+@router.get("/last-local-model", response_model = LastLocalModelResponse)
+def get_last_local_model(
+    current_subject: str = Depends(get_current_subject),
+) -> LastLocalModelResponse:
+    from storage.studio_db import get_app_setting
+
+    stored = get_app_setting(LAST_LOCAL_MODEL_SETTING_KEY, None)
+    _now = int(time.time() * 1000)
+    if not isinstance(stored, dict):
+        return LastLocalModelResponse(server_now = _now)
+    try:
+        payload = LastLocalModelPayload(**stored)
+    except Exception:
+        return LastLocalModelResponse(server_now = _now)
+    return LastLocalModelResponse(**payload.model_dump(exclude = {"client_now"}), server_now = _now)
+
+
+@router.put("/last-local-model", response_model = LastLocalModelResponse)
+def update_last_local_model(
+    payload: LastLocalModelPayload, current_subject: str = Depends(get_current_subject)
+) -> LastLocalModelResponse:
+    from storage.studio_db import get_app_setting, upsert_app_settings
+
+    # A delayed older PUT (token refresh, network retry) must not overwrite a newer
+    # load from another surface: loaded_at orders stamped writes, and the stored
+    # record is returned so the caller sees the authoritative state. Unstamped
+    # writes come from pre-loaded_at clients and keep last-write-wins.
+    _server_now = int(time.time() * 1000)
+    with _LAST_LOCAL_MODEL_LOCK:
+        if payload.loaded_at is not None:
+            if payload.client_now is not None:
+                # translate into the server frame: fresh loads land near now,
+                # reconcile re-issues of old shadows stay proportionally old
+                _shifted = payload.loaded_at + (_server_now - payload.client_now)
+                payload = payload.model_copy(update = {"loaded_at": max(0, _shifted)})
+            _cap = _server_now + _LAST_LOCAL_MODEL_CLOCK_SLACK_MS
+            if payload.loaded_at > _cap:
+                payload = payload.model_copy(update = {"loaded_at": _cap})
+            stored = get_app_setting(LAST_LOCAL_MODEL_SETTING_KEY, None)
+            if isinstance(stored, dict):
+                try:
+                    current = LastLocalModelPayload(**stored)
+                except Exception:
+                    current = None
+                if (
+                    current is not None
+                    and current.loaded_at is not None
+                    and payload.loaded_at < current.loaded_at
+                ):
+                    return LastLocalModelResponse(
+                        **current.model_dump(exclude = {"client_now"}), server_now = _server_now
+                    )
+        upsert_app_settings(
+            {LAST_LOCAL_MODEL_SETTING_KEY: payload.model_dump(exclude = {"client_now"})}
+        )
+    return LastLocalModelResponse(
+        **payload.model_dump(exclude = {"client_now"}), server_now = _server_now
+    )
 
 
 @router.get("/vram-budget", response_model = VramBudgetResponse)
