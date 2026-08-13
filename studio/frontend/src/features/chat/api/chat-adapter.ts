@@ -4584,6 +4584,7 @@ export function createOpenAIStreamAdapter(
         provisional?: boolean;
         duplicate?: boolean;
         reason?: string;
+        mcp_server?: string;
         [key: string]: unknown;
       };
       type PositionedToolCallPart = ToolCallMessagePart & {

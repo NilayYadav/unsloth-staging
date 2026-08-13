@@ -8,6 +8,7 @@ import {
   listStoredChatMessages,
   listStoredChatThreads,
 } from "../utils/chat-history-storage";
+import { mcpServerFromProvenance } from "../utils/mcp-tool-name";
 import { attachmentsPastedText } from "../utils/pasted-text.ts";
 
 export interface ChatSearchItem {
@@ -101,6 +102,8 @@ function extractText(message: MessageRecord): string {
       if (typeof t === "string") parts.push(t);
     } else if (p.type === "tool-call") {
       if (typeof p.toolName === "string") parts.push(p.toolName);
+      const mcpServer = mcpServerFromProvenance(p.provenance);
+      if (mcpServer) parts.push(mcpServer);
       const args = searchableText(typeof p.argsText === "string" ? p.argsText : p.args);
       if (args) parts.push(args);
       const result = searchableText(p.result);
