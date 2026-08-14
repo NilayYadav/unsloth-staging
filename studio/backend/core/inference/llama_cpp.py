@@ -5985,6 +5985,91 @@ class LlamaCppBackend:
             logger.debug(f"install marker arch read failed: {e}")
             return None
 
+    @staticmethod
+    def _installed_llama_cuda_sms(binary: Optional[str] = None) -> Optional[frozenset]:
+        """SM targets the installed CUDA prebuilt was built for (``supported_sms``
+        in UNSLOTH_PREBUILT_INFO.json). None when unknown (no marker, older
+        install, non-CUDA bundle), so callers fail open. Never raises."""
+        try:
+            from utils.llama_cpp_freshness import read_install_marker
+
+            marker = read_install_marker(binary or LlamaCppBackend._find_llama_server_binary())
+            if not marker:
+                return None
+            sms = marker.get("supported_sms")
+            if not isinstance(sms, list) or not sms:
+                return None
+            if not all(str(s).strip().isdigit() for s in sms):
+                return None
+            return frozenset(int(s) for s in sms)
+        except Exception as e:
+            logger.debug(f"install marker supported_sms read failed: {e}")
+            return None
+
+    @staticmethod
+    def _cuda_compute_caps() -> dict:
+        """Physical id -> SM (90 for sm_90) via nvidia-smi, honoring
+        CUDA_VISIBLE_DEVICES; {} when unknown. Never raises."""
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=index,compute_cap", "--format=csv,noheader"],
+                capture_output = True,
+                text = True,
+                encoding = "utf-8",
+                errors = "replace",
+                timeout = 10,
+                env = child_env_without_native_path_secret(),
+                **_windows_hidden_subprocess_kwargs(),
+            )
+            if result.returncode != 0:
+                return {}
+            allowed = LlamaCppBackend._visible_devices_mask("CUDA_VISIBLE_DEVICES")
+            caps = {}
+            for line in result.stdout.strip().splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) < 2:
+                    continue
+                try:
+                    idx = int(parts[0])
+                    major, minor = parts[1].split(".")
+                    sm = int(major) * 10 + int(minor)
+                except ValueError:
+                    continue
+                if allowed is not None and idx not in allowed:
+                    continue
+                caps[idx] = sm
+            return caps
+        except Exception as e:
+            logger.debug(f"compute_cap probe failed: {e}")
+            return {}
+
+    @classmethod
+    def _cuda_sm_gate_error(cls, binary: Optional[str] = None) -> Optional[str]:
+        """Error message when the installed CUDA bundle covers no GPU on this host
+        (typically installed on a machine with a different GPU, e.g. a cloud image
+        baked on another card), or None to proceed. The crash this prevents is
+        deterministic -- no launch flag can help -- so failing fast with the fix
+        beats letting llama-server abort. Fails open on unknown coverage or caps."""
+        # Resolved once so the marker read and the remedy below describe the same
+        # binary.
+        binary = binary or cls._find_llama_server_binary()
+        supported = cls._installed_llama_cuda_sms(binary)
+        if supported is None:
+            return None
+        caps = cls._cuda_compute_caps()
+        if not caps or any(sm in supported for sm in caps.values()):
+            return None
+        present = ", ".join(f"GPU {idx} is sm_{sm}" for idx, sm in sorted(caps.items()))
+        # The remedy has to follow the binary's provenance: the updater cannot
+        # replace a pinned LLAMA_SERVER_PATH or a llama-server found on PATH, so
+        # telling its owner to update would loop them through the same gate.
+        return (
+            f"The installed llama.cpp build only has GPU code for "
+            f"sm_{min(supported)}-sm_{max(supported)}, but {present} -- it was "
+            f"likely installed on a machine with a different GPU, so "
+            f"{cls._runtime_remedy(binary)}."
+        )
+
     @classmethod
     def _arch_gate_survivors(cls, binary: Optional[str] = None) -> list[int]:
         """Physical ids the ROCm arch gate leaves, or [] when there is nothing to
@@ -15818,6 +15903,23 @@ class LlamaCppBackend:
                     and not is_vulkan_backend
                     and not self._zero_offload_keeps_gpu_visible(cmd, env)
                 )
+                # The CUDA SM gate belongs here, where the child's GPU visibility is
+                # finally known: both arms below write CUDA_VISIBLE_DEVICES=-1, so the
+                # child enumerates no device, loads no kernel image, and the
+                # deterministic abort the gate exists to pre-empt cannot happen --
+                # refusing those loads breaks a launch that runs. Deciding it from the
+                # request instead (zero_vram_chat_load) over-refused: the UI's default
+                # speculative "auto" usually resolves to a drafterless mode, a
+                # projector pinned to the CPU with --no-mmproj-offload holds no VRAM,
+                # and a drafter pinned with --spec-draft-ngl 0 / --spec-draft-device
+                # cpu is likewise CPU-only, yet all three read as GPU-bearing there --
+                # only the resolved argv knows which. Still before every spawn below,
+                # and outside the fit's try/except, so the refusal cannot be swallowed
+                # into the --fit on fallback.
+                if not (_cpu_only_zero_offload or _arch_gate_forced_cpu):
+                    _sm_gate = self._cuda_sm_gate_error(binary)
+                    if _sm_gate:
+                        raise RuntimeError(_sm_gate)
                 # The arch gate emptying the pool lands here for the same reason
                 # (#7624): no device set this binary can launch on, so the child must
                 # not see the cards it would enumerate and abort on. gpu_indices is
