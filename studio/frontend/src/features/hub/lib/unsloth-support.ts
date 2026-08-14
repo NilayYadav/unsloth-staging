@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import { routableToMediaPage } from "./local-path.ts";
+
 const EXCLUDED_TAGS_GPU = new Set([
   "gptq",
   "awq",
@@ -173,6 +175,20 @@ export function mediaPageForTask(
   const tag = pipelineTag?.toLowerCase().trim();
   if (tag && AUDIO_PAGE_TASKS.has(tag)) return "audio";
   return studioPageForTask(pipelineTag);
+}
+
+/** The media page a row is actually RUN on. A media task alone is not enough: those pages
+ *  resolve a routed `model` as a Hub id, so a filesystem row never reaches one and the click
+ *  falls through to the chat loader, which unloads the resident model for a load that can only
+ *  fail. Run enablement and the run handler must agree, so both decide through this. */
+export function routedMediaPageForRow(
+  pipelineTag: string | null | undefined,
+  kind: "discover" | "cache" | "local",
+  localSource?: string | null,
+): "images" | "video" | "audio" | undefined {
+  const page = mediaPageForTask(pipelineTag);
+  if (!page) return undefined;
+  return routableToMediaPage(kind, localSource) ? page : undefined;
 }
 
 export function excludedFormatTagsForDevice(

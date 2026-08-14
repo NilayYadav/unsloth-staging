@@ -1335,11 +1335,19 @@ export function ModelsPage() {
       // cached repo the inventory pinned to its snapshot directory, whose symlinked entries
       // the pages' containment check rejects anyway.
       const routeId = runId && !looksLikeLocalPath(runId) ? runId : selectedModel.hubRepoId;
-      if (
-        mediaPage &&
-        routableToMediaPage(selectedModel.kind, selectedModel.localSource) &&
-        routeId
-      ) {
+      if (mediaPage) {
+        if (
+          !routableToMediaPage(selectedModel.kind, selectedModel.localSource) ||
+          !routeId
+        ) {
+          // Falling through would hand a media checkpoint to the chat loader, which unloads the
+          // resident model before /load refuses it. Neither surface can run this row, so stop.
+          toast.error(
+            `${selectedModel.id} runs on the ${mediaPage} page, which loads models by Hub id. This local copy does not have one.`,
+            { duration: 7000 },
+          );
+          return;
+        }
         void navigate({
           to: `/${mediaPage}`,
           // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.

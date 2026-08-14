@@ -53,7 +53,7 @@ import { confirmExternalLink } from "../stores/external-link-confirm";
 import type { SelectedModelView } from "../types";
 import { DatasetDownloadSection } from "./dataset-download-section";
 import { taskForMediaPick } from "@/features/model-picker/components/model-selector/audio-picker-policy";
-import { mediaPageForTask } from "../lib/unsloth-support";
+import { routedMediaPageForRow } from "../lib/unsloth-support";
 import { DownloadSection } from "./download-section";
 import { LocalDatasetCard } from "./local-dataset-card";
 import { LocalOnDeviceCard } from "./local-on-device-card";
@@ -573,10 +573,14 @@ export const ModelInspector = memo(function ModelInspector({
           c.key === "audio",
       ));
   // An image / video model runs on its own page, which onLoad already routes to;
-  // the chat gates below would leave it greyed out as if it were unusable.
+  // the chat gates below would leave it greyed out as if it were unusable. Only when the row
+  // can actually be routed there: onLoad falls through to the chat loader otherwise, and that
+  // unloads the resident chat model for a media checkpoint llama.cpp can only refuse.
   const runsOnMediaPage =
-    mediaPageForTask(
+    routedMediaPageForRow(
       taskForMediaPick(model.pipelineTag, model.task) ?? undefined,
+      model.kind,
+      model.localSource,
     ) !== undefined;
   // Chat-only hosts (no supported GPU / usable MLX) run inference only through
   // llama.cpp, so only GGUF is loadable.
