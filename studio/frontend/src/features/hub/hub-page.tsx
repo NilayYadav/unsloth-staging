@@ -25,7 +25,15 @@ import {
   useActiveModelConfig,
 } from "@/features/model-picker";
 import { loadOpenAIAutoSwitchSettings } from "@/features/settings";
-import { taskForMediaPick } from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  audioPickIsRoutable,
+  curatedAudioInventoryTask,
+  taskForMediaPick,
+} from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  artifactForRepoId,
+  AUDIO_CATALOG,
+} from "@/features/model-picker/components/model-selector/model-catalog";
 import { diffusionRouteSearch } from "@/lib/diffusion-route-search";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useGpuInfo, useInferenceGpuInfo } from "@/hooks/use-gpu-info";
@@ -110,7 +118,7 @@ import {
   matchesModelType,
 } from "./lib/model-type-filter";
 import { resolveOwnerProviderLogo } from "./lib/provider-logos";
-import { studioPageForTask } from "./lib/unsloth-support";
+import { mediaPageForTask } from "./lib/unsloth-support";
 import { fingerprintToken } from "./lib/token-fingerprint";
 import {
   buildDiscoverRows,
@@ -1286,9 +1294,40 @@ export function ModelsPage() {
       // and destination the chat picker uses, so both surfaces route a pick identically.
       // `task` is not optional here: only CachedModelRepo carries pipelineTag, so every
       // cached GGUF repo (the reported MiniMax-H3 case) reports its modality on `task`.
-      const mediaPage = studioPageForTask(
-        taskForMediaPick(selectedModel.pipelineTag, selectedModel.task) ?? undefined,
+      // A cached audio GGUF reports "text-generation", so the catalog decides its task.
+      const audioArtifact = artifactForRepoId(
+        selectedModel.hubRepoId ?? selectedModel.id,
+        AUDIO_CATALOG,
       );
+      const pickedTask = curatedAudioInventoryTask({
+        inventoryTask: taskForMediaPick(
+          selectedModel.pipelineTag,
+          selectedModel.task,
+        ),
+        isExactCatalogArtifact: audioArtifact !== null,
+        catalogScope: audioArtifact?.group.scope,
+        catalogTask: audioArtifact?.group.task,
+      });
+      const mediaPage = mediaPageForTask(pickedTask ?? undefined);
+      if (
+        mediaPage === "audio" &&
+        !audioPickIsRoutable({
+          id: selectedModel.id,
+          task: pickedTask,
+          isGguf: selectedModel.isGguf,
+          isCurated: audioArtifact !== null,
+          baseModel: selectedModel.baseModel,
+          tags: selectedModel.tags,
+          libraryName: selectedModel.libraryName,
+        })
+      ) {
+        // Running it in chat would evict the chat model for a repo neither surface can run.
+        toast.error(
+          `${selectedModel.id} is not a speech model Unsloth can run yet. The Audio page lists the families it supports.`,
+          { duration: 7000 },
+        );
+        return;
+      }
       // The target pages read a routed `model` as a Hub id, so a runId that is a PATH would
       // arrive as a repo that does not exist -- prefer the Hub id, which loads the same copy
       // since the loader reuses whichever cache root holds it. That covers a filesystem row
@@ -1304,9 +1343,17 @@ export function ModelsPage() {
         void navigate({
           to: `/${mediaPage}`,
           // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.
-          search: diffusionRouteSearch(routeId, {
-            ggufVariant: opts.ggufVariant ?? null,
-          }),
+          search:
+            mediaPage === "audio"
+              ? {
+                  model: routeId,
+                  ggufQuant: opts.ggufVariant ?? undefined,
+                  // pickedTask, not the row's tag: a cached row carries none.
+                  task: pickedTask ?? undefined,
+                }
+              : diffusionRouteSearch(routeId, {
+                  ggufVariant: opts.ggufVariant ?? null,
+                }),
         });
         return;
       }

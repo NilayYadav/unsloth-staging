@@ -148,6 +148,12 @@ const VIDEO_PAGE_TASKS: ReadonlySet<string> = new Set([
   "image-text-to-video",
 ]);
 
+// Speech tasks the Audio page handles: TTS takes its main slot, ASR the dictation sidecar.
+const AUDIO_PAGE_TASKS: ReadonlySet<string> = new Set([
+  "text-to-speech",
+  "automatic-speech-recognition",
+]);
+
 /** Which Studio page runs this pipeline task, if any. */
 export function studioPageForTask(
   pipelineTag?: string | null,
@@ -157,6 +163,16 @@ export function studioPageForTask(
   if (IMAGE_PAGE_TASKS.has(tag)) return "images";
   if (VIDEO_PAGE_TASKS.has(tag)) return "video";
   return undefined;
+}
+
+/** studioPageForTask plus the Audio page. Kept separate because the chat pickers
+ *  gate their On Device list on studioPageForTask and must not admit speech rows. */
+export function mediaPageForTask(
+  pipelineTag?: string | null,
+): "images" | "video" | "audio" | undefined {
+  const tag = pipelineTag?.toLowerCase().trim();
+  if (tag && AUDIO_PAGE_TASKS.has(tag)) return "audio";
+  return studioPageForTask(pipelineTag);
 }
 
 export function excludedFormatTagsForDevice(
