@@ -177,10 +177,15 @@ export function mediaPageForTask(
   return studioPageForTask(pipelineTag);
 }
 
-/** The media page a row is actually RUN on. A media task alone is not enough: those pages
- *  resolve a routed `model` as a Hub id, so a filesystem row never reaches one and the click
- *  falls through to the chat loader, which unloads the resident model for a load that can only
- *  fail. Run enablement and the run handler must agree, so both decide through this. */
+/** The media page a row is actually RUN on. A media task alone is not enough for Images and
+ *  Video: they resolve a routed `model` as a Hub id, so a filesystem row never reaches one and
+ *  the click falls through to the chat loader, which unloads the resident model for a load that
+ *  can only fail. Run enablement and the run handler must agree, so both decide through this.
+ *
+ *  Audio is exempt: its main slot loads a local path directly, so a filesystem TTS checkpoint
+ *  routes fine. Local rows never carry the ASR tag (audioPipelineTagFor withholds it precisely
+ *  because the STT sidecar takes only a curated key or a Hub id), so the sidecar-only case
+ *  cannot arrive here. */
 export function routedMediaPageForRow(
   pipelineTag: string | null | undefined,
   kind: "discover" | "cache" | "local",
@@ -188,6 +193,7 @@ export function routedMediaPageForRow(
 ): "images" | "video" | "audio" | undefined {
   const page = mediaPageForTask(pipelineTag);
   if (!page) return undefined;
+  if (page === "audio") return page;
   return routableToMediaPage(kind, localSource) ? page : undefined;
 }
 

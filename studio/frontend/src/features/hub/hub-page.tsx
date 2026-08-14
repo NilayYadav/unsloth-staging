@@ -1316,6 +1316,13 @@ export function ModelsPage() {
           task: pickedTask,
           isGguf: selectedModel.isGguf,
           isCurated: audioArtifact !== null,
+          // A filesystem checkpoint has no Hub identity, so the family-name heuristic would
+          // reject it on its directory name; its task came from the backend reading the
+          // checkpoint. Same rows the chat picker marks local, so both surfaces agree.
+          isLocalCheckpoint: !routableToMediaPage(
+            selectedModel.kind,
+            selectedModel.localSource,
+          ),
           baseModel: selectedModel.baseModel,
           tags: selectedModel.tags,
           libraryName: selectedModel.libraryName,
@@ -1335,6 +1342,34 @@ export function ModelsPage() {
       // cached repo the inventory pinned to its snapshot directory, whose symlinked entries
       // the pages' containment check rejects anyway.
       const routeId = runId && !looksLikeLocalPath(runId) ? runId : selectedModel.hubRepoId;
+      if (mediaPage === "audio") {
+        // Audio takes a local path, so a filesystem checkpoint routes on its runId when it has
+        // no Hub id. Prefer the Hub id when there is one: the page classifies the pick against
+        // the curated catalog by that id.
+        const audioModel = routeId ?? runId;
+        if (!audioModel) {
+          toast.error(
+            `${selectedModel.id} has no load target the Audio page can open.`,
+            { duration: 7000 },
+          );
+          return;
+        }
+        void navigate({
+          to: "/audio",
+          // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.
+          search: {
+            model: audioModel,
+            ggufQuant: opts.ggufVariant ?? undefined,
+            // pickedTask, not the row's tag: a cached row carries none.
+            task: pickedTask ?? undefined,
+            // A row cached in a NON-ACTIVE HF cache is loadable only by its snapshot path.
+            // Dropping it made the page load by repo id, which fails offline or downloads a
+            // second copy into the active cache. Chat threads the same field as meta.loadId.
+            ...(runId && runId !== audioModel ? { loadId: runId } : {}),
+          },
+        });
+        return;
+      }
       if (mediaPage) {
         if (
           !routableToMediaPage(selectedModel.kind, selectedModel.localSource) ||
@@ -1351,17 +1386,9 @@ export function ModelsPage() {
         void navigate({
           to: `/${mediaPage}`,
           // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.
-          search:
-            mediaPage === "audio"
-              ? {
-                  model: routeId,
-                  ggufQuant: opts.ggufVariant ?? undefined,
-                  // pickedTask, not the row's tag: a cached row carries none.
-                  task: pickedTask ?? undefined,
-                }
-              : diffusionRouteSearch(routeId, {
-                  ggufVariant: opts.ggufVariant ?? null,
-                }),
+          search: diffusionRouteSearch(routeId, {
+            ggufVariant: opts.ggufVariant ?? null,
+          }),
         });
         return;
       }

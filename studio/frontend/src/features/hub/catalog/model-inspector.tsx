@@ -52,7 +52,14 @@ import {
 import { confirmExternalLink } from "../stores/external-link-confirm";
 import type { SelectedModelView } from "../types";
 import { DatasetDownloadSection } from "./dataset-download-section";
-import { taskForMediaPick } from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  curatedAudioInventoryTask,
+  taskForMediaPick,
+} from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  artifactForRepoId,
+  AUDIO_CATALOG,
+} from "@/features/model-picker/components/model-selector/model-catalog";
 import { routedMediaPageForRow } from "../lib/unsloth-support";
 import { DownloadSection } from "./download-section";
 import { LocalDatasetCard } from "./local-dataset-card";
@@ -572,13 +579,25 @@ export const ModelInspector = memo(function ModelInspector({
           c.key === "vision" ||
           c.key === "audio",
       ));
-  // An image / video model runs on its own page, which onLoad already routes to;
+  // An image / video / audio model runs on its own page, which onLoad already routes to;
   // the chat gates below would leave it greyed out as if it were unusable. Only when the row
   // can actually be routed there: onLoad falls through to the chat loader otherwise, and that
   // unloads the resident chat model for a media checkpoint llama.cpp can only refuse.
+  // Resolved exactly as onLoad resolves it, or the two disagree: a curated ASR GGUF reports
+  // text-generation with canChat false, so the raw tag would gate Run off a model the handler
+  // reclassifies from the catalog and routes to Audio.
+  const inspectorAudioArtifact = artifactForRepoId(
+    model.hubRepoId ?? model.id,
+    AUDIO_CATALOG,
+  );
   const runsOnMediaPage =
     routedMediaPageForRow(
-      taskForMediaPick(model.pipelineTag, model.task) ?? undefined,
+      curatedAudioInventoryTask({
+        inventoryTask: taskForMediaPick(model.pipelineTag, model.task),
+        isExactCatalogArtifact: inspectorAudioArtifact !== null,
+        catalogScope: inspectorAudioArtifact?.group.scope,
+        catalogTask: inspectorAudioArtifact?.group.task,
+      }) ?? undefined,
       model.kind,
       model.localSource,
     ) !== undefined;

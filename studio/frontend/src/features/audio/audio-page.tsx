@@ -1234,6 +1234,7 @@ export function AudioPage({ active = true }: { active?: boolean }) {
     quant?: string;
     ggufQuant?: string;
     task?: string;
+    loadId?: string;
   };
   const handledRouteModel = useRef<string | null>(null);
   useEffect(() => {
@@ -1243,7 +1244,7 @@ export function AudioPage({ active = true }: { active?: boolean }) {
       handledRouteModel.current = null;
       return;
     }
-    const key = `${wanted}|${routeSearch.quant ?? ""}|${routeSearch.ggufQuant ?? ""}|${routeSearch.task ?? ""}`;
+    const key = `${wanted}|${routeSearch.quant ?? ""}|${routeSearch.ggufQuant ?? ""}|${routeSearch.task ?? ""}|${routeSearch.loadId ?? ""}`;
     if (handledRouteModel.current === key) return;
     // The persistent Audio page may still be finishing hidden work. Keep the
     // handoff in the URL and retry it when that work releases the lifecycle.
@@ -1258,6 +1259,8 @@ export function AudioPage({ active = true }: { active?: boolean }) {
       // exact forwarded GGUF. An already-cached job completes immediately.
       isDownloaded: routeSearch.quant ? false : undefined,
       pipelineTag: routeSearch.task ?? null,
+      // A row cached outside the active HF cache loads only by its snapshot path.
+      loadId: routeSearch.loadId ?? null,
     });
     void navigateSelf({ to: "/audio", search: {}, replace: true });
   }, [
@@ -1267,6 +1270,7 @@ export function AudioPage({ active = true }: { active?: boolean }) {
     routeSearch.quant,
     routeSearch.ggufQuant,
     routeSearch.task,
+    routeSearch.loadId,
     handleModelSelect,
     navigateSelf,
   ]);
