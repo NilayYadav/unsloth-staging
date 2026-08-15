@@ -1063,6 +1063,9 @@ export const ru = {
       archivedVideos: "Архивные видео",
       archivedVideosDescription: "Просмотр и управление видео, которые вы архивировали.",
       manageAction: "Управлять",
+      manageChats: "Управление чатами",
+      manageChatsDescription:
+        "Выберите несколько чатов, чтобы переместить, закрепить, архивировать, экспортировать или удалить их.",
       exportArchivedChats: "Экспорт",
       exportingArchivedChats: "Экспорт…",
       exportedOneArchivedChat: "Экспортирован 1 архивный чат",

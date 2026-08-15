@@ -213,7 +213,10 @@ export {
   EXPORT_FORMATS_LIST,
   buildFineTuneJsonl,
   bulkExportConversationsByScope,
+  exportBulkConversationsMerged,
+  exportBulkConversationsSeparate,
   exportFineTuneJsonl,
+  type ConvExportFormat,
   type FineTuneFormat,
 } from "./prompt-storage/prompt-storage-dialog";
 export {
@@ -228,7 +231,9 @@ export {
 export {
   archiveAllChatItems,
   archiveChatItem,
+  archiveChatItems,
   deleteChatItem,
+  deleteChatItems,
   renameChatItem,
   unarchiveChatItem,
   useChatSidebarItems,

@@ -1053,6 +1053,9 @@ export const ar = {
       archivedVideos: "الفيديوهات المؤرشفة",
       archivedVideosDescription: "اعرض الفيديوهات التي أرشفتها وأدرها.",
       manageAction: "إدارة",
+      manageChats: "إدارة المحادثات",
+      manageChatsDescription:
+        "حدد عدة محادثات لنقلها أو تثبيتها أو أرشفتها أو تصديرها أو حذفها.",
       exportArchivedChats: "تصدير",
       exportingArchivedChats: "جارٍ التصدير...",
       exportedOneArchivedChat: "تم تصدير محادثة مؤرشفة واحدة",
