@@ -25,7 +25,15 @@ import {
   useActiveModelConfig,
 } from "@/features/model-picker";
 import { loadOpenAIAutoSwitchSettings } from "@/features/settings";
-import { taskForMediaPick } from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  audioPickIsRoutable,
+  curatedAudioInventoryTask,
+  taskForMediaPick,
+} from "@/features/model-picker/components/model-selector/audio-picker-policy";
+import {
+  artifactForRepoId,
+  AUDIO_CATALOG,
+} from "@/features/model-picker/components/model-selector/model-catalog";
 import { diffusionRouteSearch } from "@/lib/diffusion-route-search";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useGpuInfo, useInferenceGpuInfo } from "@/hooks/use-gpu-info";
@@ -110,7 +118,7 @@ import {
   matchesModelType,
 } from "./lib/model-type-filter";
 import { resolveOwnerProviderLogo } from "./lib/provider-logos";
-import { studioPageForTask } from "./lib/unsloth-support";
+import { mediaPageForTask } from "./lib/unsloth-support";
 import { fingerprintToken } from "./lib/token-fingerprint";
 import {
   buildDiscoverRows,
@@ -1286,9 +1294,47 @@ export function ModelsPage() {
       // and destination the chat picker uses, so both surfaces route a pick identically.
       // `task` is not optional here: only CachedModelRepo carries pipelineTag, so every
       // cached GGUF repo (the reported MiniMax-H3 case) reports its modality on `task`.
-      const mediaPage = studioPageForTask(
-        taskForMediaPick(selectedModel.pipelineTag, selectedModel.task) ?? undefined,
+      // A cached audio GGUF reports "text-generation", so the catalog decides its task.
+      const audioArtifact = artifactForRepoId(
+        selectedModel.hubRepoId ?? selectedModel.id,
+        AUDIO_CATALOG,
       );
+      const pickedTask = curatedAudioInventoryTask({
+        inventoryTask: taskForMediaPick(
+          selectedModel.pipelineTag,
+          selectedModel.task,
+        ),
+        isExactCatalogArtifact: audioArtifact !== null,
+        catalogScope: audioArtifact?.group.scope,
+        catalogTask: audioArtifact?.group.task,
+      });
+      const mediaPage = mediaPageForTask(pickedTask ?? undefined);
+      if (
+        mediaPage === "audio" &&
+        !audioPickIsRoutable({
+          id: selectedModel.id,
+          task: pickedTask,
+          isGguf: selectedModel.isGguf,
+          isCurated: audioArtifact !== null,
+          // A filesystem checkpoint has no Hub identity, so the family-name heuristic would
+          // reject it on its directory name; its task came from the backend reading the
+          // checkpoint. Same rows the chat picker marks local, so both surfaces agree.
+          isLocalCheckpoint: !routableToMediaPage(
+            selectedModel.kind,
+            selectedModel.localSource,
+          ),
+          baseModel: selectedModel.baseModel,
+          tags: selectedModel.tags,
+          libraryName: selectedModel.libraryName,
+        })
+      ) {
+        // Running it in chat would evict the chat model for a repo neither surface can run.
+        toast.error(
+          `${selectedModel.id} is not a speech model Unsloth can run yet. The Audio page lists the families it supports.`,
+          { duration: 7000 },
+        );
+        return;
+      }
       // The target pages read a routed `model` as a Hub id, so a runId that is a PATH would
       // arrive as a repo that does not exist -- prefer the Hub id, which loads the same copy
       // since the loader reuses whichever cache root holds it. That covers a filesystem row
@@ -1296,11 +1342,47 @@ export function ModelsPage() {
       // cached repo the inventory pinned to its snapshot directory, whose symlinked entries
       // the pages' containment check rejects anyway.
       const routeId = runId && !looksLikeLocalPath(runId) ? runId : selectedModel.hubRepoId;
-      if (
-        mediaPage &&
-        routableToMediaPage(selectedModel.kind, selectedModel.localSource) &&
-        routeId
-      ) {
+      if (mediaPage === "audio") {
+        // Audio takes a local path, so a filesystem checkpoint routes on its runId when it has
+        // no Hub id. Prefer the Hub id when there is one: the page classifies the pick against
+        // the curated catalog by that id.
+        const audioModel = routeId ?? runId;
+        if (!audioModel) {
+          toast.error(
+            `${selectedModel.id} has no load target the Audio page can open.`,
+            { duration: 7000 },
+          );
+          return;
+        }
+        void navigate({
+          to: "/audio",
+          // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.
+          search: {
+            model: audioModel,
+            ggufQuant: opts.ggufVariant ?? undefined,
+            // pickedTask, not the row's tag: a cached row carries none.
+            task: pickedTask ?? undefined,
+            // A row cached in a NON-ACTIVE HF cache is loadable only by its snapshot path.
+            // Dropping it made the page load by repo id, which fails offline or downloads a
+            // second copy into the active cache. Chat threads the same field as meta.loadId.
+            ...(runId && runId !== audioModel ? { loadId: runId } : {}),
+          },
+        });
+        return;
+      }
+      if (mediaPage) {
+        if (
+          !routableToMediaPage(selectedModel.kind, selectedModel.localSource) ||
+          !routeId
+        ) {
+          // Falling through would hand a media checkpoint to the chat loader, which unloads the
+          // resident model before /load refuses it. Neither surface can run this row, so stop.
+          toast.error(
+            `${selectedModel.id} runs on the ${mediaPage} page, which loads models by Hub id. This local copy does not have one.`,
+            { duration: 7000 },
+          );
+          return;
+        }
         void navigate({
           to: `/${mediaPage}`,
           // `quant` is consumed verbatim as a gguf filename, so a label rides `ggufQuant`.

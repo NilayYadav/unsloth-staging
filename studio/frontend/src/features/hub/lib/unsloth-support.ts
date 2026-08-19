@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import { routableToMediaPage } from "./local-path.ts";
+
 const EXCLUDED_TAGS_GPU = new Set([
   "gptq",
   "awq",
@@ -148,6 +150,12 @@ const VIDEO_PAGE_TASKS: ReadonlySet<string> = new Set([
   "image-text-to-video",
 ]);
 
+// Speech tasks the Audio page handles: TTS takes its main slot, ASR the dictation sidecar.
+const AUDIO_PAGE_TASKS: ReadonlySet<string> = new Set([
+  "text-to-speech",
+  "automatic-speech-recognition",
+]);
+
 /** Which Studio page runs this pipeline task, if any. */
 export function studioPageForTask(
   pipelineTag?: string | null,
@@ -157,6 +165,36 @@ export function studioPageForTask(
   if (IMAGE_PAGE_TASKS.has(tag)) return "images";
   if (VIDEO_PAGE_TASKS.has(tag)) return "video";
   return undefined;
+}
+
+/** studioPageForTask plus the Audio page. Kept separate because the chat pickers
+ *  gate their On Device list on studioPageForTask and must not admit speech rows. */
+export function mediaPageForTask(
+  pipelineTag?: string | null,
+): "images" | "video" | "audio" | undefined {
+  const tag = pipelineTag?.toLowerCase().trim();
+  if (tag && AUDIO_PAGE_TASKS.has(tag)) return "audio";
+  return studioPageForTask(pipelineTag);
+}
+
+/** The media page a row is actually RUN on. A media task alone is not enough for Images and
+ *  Video: they resolve a routed `model` as a Hub id, so a filesystem row never reaches one and
+ *  the click falls through to the chat loader, which unloads the resident model for a load that
+ *  can only fail. Run enablement and the run handler must agree, so both decide through this.
+ *
+ *  Audio is exempt: its main slot loads a local path directly, so a filesystem TTS checkpoint
+ *  routes fine. Local rows never carry the ASR tag (audioPipelineTagFor withholds it precisely
+ *  because the STT sidecar takes only a curated key or a Hub id), so the sidecar-only case
+ *  cannot arrive here. */
+export function routedMediaPageForRow(
+  pipelineTag: string | null | undefined,
+  kind: "discover" | "cache" | "local",
+  localSource?: string | null,
+): "images" | "video" | "audio" | undefined {
+  const page = mediaPageForTask(pipelineTag);
+  if (!page) return undefined;
+  if (page === "audio") return page;
+  return routableToMediaPage(kind, localSource) ? page : undefined;
 }
 
 export function excludedFormatTagsForDevice(
