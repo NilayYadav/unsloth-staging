@@ -1,0 +1,54 @@
+name: "staging-9217 studio-playwright"
+on:
+  push:
+    branches: ["pr-9217-xplat-ci"]
+    paths:
+      - 'studio/**'
+      - '.github/workflows/staging-9217-playwright.yml'
+      - '.github/scripts/retry-with-apt-lock.sh'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  studio-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # `--with-deps` shells out to apt, and the repo's workflow-trigger lint
+      # (tests/studio/test_apt_steps_are_bounded.py) rejects any apt step that the
+      # step itself does not bound: unbounded, it spends the job's whole timeout and
+      # GitHub reports "cancelled" with no step named. 2 x 420s + one 125s lock wait
+      # is 965s, which fits inside 17m, which fits inside the job's 40m.
+      - name: Install Chromium for the studio-live smoke
+        timeout-minutes: 17
+        env:
+          RETRY_ATTEMPTS: '2'
+          RETRY_ATTEMPT_TIMEOUT: '420'
+        run: |
+          pip install playwright httpx pillow
+          bash .github/scripts/retry-with-apt-lock.sh \
+            python -m playwright install --with-deps chromium
+      - name: Install + launch Studio
+        run: |
+          ./install.sh --local --no-torch || pip install -e .
+          nohup unsloth studio -H 127.0.0.1 -p 8888 > studio.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8888/healthz && break; sleep 5; done
+      - name: Playwright smoke (studio_test_kit)
+        run: PYTHONPATH=.github/scripts python -m studio_test_kit._smoke_ui || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-playwright-9217
+          path: |
+            **/*.png
+            **/*.webm
+            studio.log
