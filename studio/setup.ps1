@@ -4727,14 +4727,16 @@ function Fast-Download {
 # Skip all Python dependency work if versions match (fast update path).
 $_PkgName = if ($env:STUDIO_PACKAGE_NAME) { $env:STUDIO_PACKAGE_NAME } else { "unsloth" }
 $SkipPythonDeps = $false
+$LatestVer = ""
+$LatestReqPy = ""
 
 if ($env:SKIP_STUDIO_BASE -ne "1" -and $env:STUDIO_LOCAL_INSTALL -ne "1") {
     # Only check when NOT called from install.ps1 (which just installed the package)
     $InstalledVer = try { (& python -c "from importlib.metadata import version; print(version('$_PkgName'))" 2>$null | Out-String).Trim() } catch { "" }
-    $LatestVer = ""
     try {
         $pypiJson = Invoke-RestMethod -Uri "https://pypi.org/pypi/$_PkgName/json" -TimeoutSec 5 -ErrorAction Stop
         $LatestVer = "$($pypiJson.info.version)".Trim()
+        $LatestReqPy = "$($pypiJson.info.requires_python)".Trim()
     } catch { }
 
     if ($InstalledVer -and $LatestVer -and ($InstalledVer -eq $LatestVer)) {
@@ -5465,6 +5467,128 @@ if ($stackExit -ne 0) {
     Write-StudioLine "[FAILED] Python dependency installation failed (exit code $stackExit)" -ForegroundColor Red
     Write-StudioLine "   Re-run the installer or check the error above for details." -ForegroundColor Red
     Exit-SetupFailure "Python dependency installation failed (exit code $stackExit)"
+}
+
+# a corporate mirror (PIP_INDEX_URL, UV_INDEX_URL, ...) can lag PyPI: the pass
+# resolves from the mirror while $LatestVer came from pypi.org, so version
+# comparisons are muted when a custom index is active. The missing-package check
+# below still runs: a pass that leaves nothing installed is broken on any index.
+$_customIndex = "$env:PIP_INDEX_URL$env:PIP_EXTRA_INDEX_URL$env:PIP_FIND_LINKS$env:UV_INDEX_URL$env:UV_EXTRA_INDEX_URL$env:UV_FIND_LINKS$env:UV_DEFAULT_INDEX$env:UV_INDEX"
+if ($LatestVer) {
+    # __MISSING__ only when the metadata positively reports no such package: a probe
+    # that merely crashed must not read as "not installed" and fail setup. Names are
+    # PEP 503-normalized on both sides, matching importlib.metadata's own lookup.
+    $_postProbe = Invoke-BoundedPythonProbe -PythonExe "python" -Code "import importlib.metadata as m, re; _norm = lambda s: re.sub('[-_.]+', '-', (s or '').lower()); _v = next((d.version for d in m.distributions() if _norm(d.metadata['Name']) == _norm('$_PkgName')), ''); print('POSTVER=' + (_v if _v else '__MISSING__'))"
+    $PostVer = if ($_postProbe.Ok -and $_postProbe.Output -match '(?m)^POSTVER=(\S+)\s*$') { $Matches[1] } else { "" }
+    $_updateOk = ($PostVer -eq $LatestVer)
+    if (-not $_updateOk -and $PostVer -and $PostVer -ne "__MISSING__") {
+        # newer than announced is fine (a release can land mid-update); PEP 440
+        # ordering so an installed pre/post/dev build never passes as the release
+        $_pepProbe = Invoke-BoundedPythonProbe -PythonExe "python" -Code "from packaging.version import Version; print('PEPCMP=' + ('ge' if Version('$PostVer') >= Version('$LatestVer') else 'lt'))"
+        if ($_pepProbe.Ok -and $_pepProbe.Output -match '(?m)^PEPCMP=(ge|lt)\s*$') {
+            $_updateOk = ($Matches[1] -eq "ge")
+        } else {
+            $_postNum = ($PostVer -replace '[^0-9.].*$', '').TrimEnd('.')
+            $_latestNum = ($LatestVer -replace '[^0-9.].*$', '').TrimEnd('.')
+            if ($_postNum -match '^\d+\.\d+' -and $_latestNum -match '^\d+\.\d+') {
+                try { $_updateOk = [version]$_postNum -ge [version]$_latestNum } catch {}
+            }
+        }
+        if (-not $_updateOk -and $pypiJson -and $pypiJson.releases) {
+            # the announced release cannot install on this interpreter (Requires-Python
+            # bump): accept only the newest release this interpreter CAN install, so a
+            # no-op pass below that bar still fails loudly. Reuses the PyPI response
+            # already fetched above (flattened to version/yanked/requires_python lines --
+            # no second request that could fail under Python's own proxy/TLS setup);
+            # base64 keeps the multi-line probe clear of the -c double-quote wrapping.
+            $_relPath = [System.IO.Path]::GetTempFileName()
+            try {
+                $_relLines = foreach ($_rel in $pypiJson.releases.PSObject.Properties) {
+                    foreach ($_relFile in $_rel.Value) {
+                        "$($_rel.Name)`t$(if ($_relFile.yanked) { 1 } else { 0 })`t$($_relFile.requires_python)`t$($_relFile.packagetype)`t$($_relFile.filename)"
+                    }
+                }
+                Set-Content -LiteralPath $_relPath -Value ($_relLines -join "`n") -Encoding UTF8
+                # the path rides in as base64: a profile name like O'Neil would otherwise
+                # end the generated Python string literal early
+                $_relPathB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_relPath))
+                $_bestCode = @"
+import base64, sys
+try:
+    from packaging.specifiers import SpecifierSet
+    from packaging.version import Version, InvalidVersion
+    post = Version('$PostVer')
+    latest = Version('$LatestVer')
+    with open(base64.b64decode('$_relPathB64').decode('utf-8'), encoding='utf-8-sig') as fh:
+        lines = fh.read().splitlines()
+except Exception:
+    sys.exit(1)
+try:
+    from packaging.tags import sys_tags
+    from packaging.utils import parse_wheel_filename
+    supported = set(str(t) for t in sys_tags())
+except Exception:
+    supported = None
+cur = Version('.'.join(map(str, sys.version_info[:3])))
+best = None
+for line in lines:
+    parts = line.split('\t')
+    if len(parts) != 5 or parts[1] == '1':
+        continue
+    try:
+        v = Version(parts[0])
+    except InvalidVersion:
+        continue
+    if v.is_prerelease:
+        continue
+    rp = parts[2]
+    try:
+        if rp and cur not in SpecifierSet(rp):
+            continue
+    except Exception:
+        pass
+    pt = parts[3]
+    if pt == 'bdist_wheel' and supported is not None:
+        try:
+            if not any(str(t) in supported for t in parse_wheel_filename(parts[4])[3]):
+                continue
+        except Exception:
+            pass
+    elif pt and pt != 'sdist' and pt != 'bdist_wheel':
+        continue
+    if best is None or v > best:
+        best = v
+print('VERIFYVER=' + ('ok' if best is not None and best < latest and post >= best else 'stale'))
+"@
+                $_b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_bestCode))
+                $_bestProbe = Invoke-BoundedPythonProbe -PythonExe "python" -Code "import base64; exec(base64.b64decode('$_b64').decode())"
+                if ($_bestProbe.Ok -and $_bestProbe.Output -match '(?m)^VERIFYVER=ok\s*$') {
+                    substep "$_PkgName $PostVer kept: $LatestVer needs Python $LatestReqPy"
+                    $_updateOk = $true
+                }
+            } finally {
+                Remove-Item -LiteralPath $_relPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    if ($_updateOk) {
+        substep "$_PkgName $PostVer confirmed"
+    } elseif ($PostVer -eq "__MISSING__") {
+        # the one unambiguous failure: a "successful" pass with no package left
+        # behind (no-op pass, stale dist-info) -- the case this check exists for
+        Write-StudioLine "[FAILED] update ran but $_PkgName is not installed (expected $LatestVer)" -ForegroundColor Red
+        Exit-SetupFailure "update ran but $_PkgName is not installed (expected $LatestVer)"
+    } elseif (-not $PostVer) {
+        substep "[WARN] could not verify $_PkgName version after update (expected $LatestVer)" "Yellow"
+    } elseif ($_customIndex) {
+        substep "$_PkgName $PostVer present (custom package index; PyPI compare skipped)"
+    } else {
+        # older-but-successful is a resolver outcome (constraints, config-file
+        # mirrors, wheels for this platform), not an install failure: pypi.org's
+        # announced latest is not authoritative for what this environment can
+        # run -- surface it, don't brick the update
+        substep "[WARN] update left $_PkgName at $PostVer ($LatestVer announced on PyPI)" "Yellow"
+    }
 }
 
 } else {
