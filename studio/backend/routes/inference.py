@@ -12425,6 +12425,9 @@ async def _proxy_to_external_provider(
             CodexTransportError,
             CodexQuotaError,
             CodexReauthorizationError,
+            ensure_subscription_models,
+            offered_subscription_model,
+            offered_subscription_model_ids,
         )
 
         # Through the same helper the saved-credential exception uses, not a bare
@@ -12451,12 +12454,25 @@ async def _proxy_to_external_provider(
         from core.inference.providers import get_provider_info as _get_codex_provider_info
 
         info = _get_codex_provider_info("openai_codex") or {}
-        if model not in info.get("default_models", []):
+        # The seed is only a seed: /codex/models is what the plan can reach, and the
+        # provider routes already accept saving a listed slug that is newer than it.
+        # Gating chat on the seed alone rejects the model the picker just offered.
+        allowed_models = set(info.get("default_models", []))
+        allowed_models |= offered_subscription_model_ids(payload.provider_id)
+        if model not in allowed_models:
+            # The catalog is process-local, so a restart leaves a saved plan slug with
+            # nothing to authorize it. Refresh once before refusing what the user picked.
+            allowed_models |= await ensure_subscription_models(payload.provider_id)
+        if model not in allowed_models:
             raise HTTPException(status_code = 400, detail = "Choose a curated Codex model.")
 
-        model_supports_vision = bool(
-            info.get("model_capabilities", {}).get(model, {}).get("vision")
-        )
+        capabilities = info.get("model_capabilities", {})
+        if model in capabilities:
+            model_supports_vision = bool(capabilities[model].get("vision"))
+        else:
+            # A slug the registry never listed: the plan's own entry is all we know.
+            listed_model = offered_subscription_model(payload.provider_id, model)
+            model_supports_vision = bool(listed_model and listed_model.get("vision"))
         if not model_supports_vision:
             for message in payload.messages:
                 if isinstance(message.content, list) and any(

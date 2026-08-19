@@ -18,8 +18,11 @@ from urllib.parse import urlparse
 
 import httpx
 
+from core.inference import openai_codex_auth as codex_auth
 from core.inference.openai_codex_auth import (
+    OPENAI_CODEX_CLIENT_VERSION,
     OPENAI_CODEX_COMPATIBILITY_INSTRUCTIONS,
+    OPENAI_CODEX_MODELS_URL,
     OPENAI_CODEX_ORIGINATOR,
     OPENAI_CODEX_RESPONSES_URL,
     OPENAI_CODEX_USER_AGENT,
@@ -208,6 +211,163 @@ def _validated_responses_url() -> str:
     return OPENAI_CODEX_RESPONSES_URL
 
 
+def _validated_models_url() -> str:
+    parsed = urlparse(OPENAI_CODEX_MODELS_URL)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "chatgpt.com"
+        or parsed.port is not None
+        or parsed.path != "/backend-api/codex/models"
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
+    ):
+        raise RuntimeError("ChatGPT Codex model endpoint configuration is invalid.")
+    return OPENAI_CODEX_MODELS_URL
+
+
+_MODELS_CACHE_TTL_SECONDS = 600
+_MODELS_CACHE_MAX_ENTRIES = 32
+_models_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+# Outlives the cache TTL: a slug listed for this plan stays saveable afterwards.
+_offered_models: dict[str, dict[str, dict[str, Any]]] = {}
+# Which ChatGPT account each cached catalog belongs to; a reauthorization can rebind
+# a connection to a different account whose plan lists different slugs.
+_catalog_accounts: dict[str, str] = {}
+
+
+def _normalize_subscription_model(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    slug = item.get("slug")
+    if not isinstance(slug, str) or not slug or len(slug) > 128:
+        return None
+    # "hide" marks internal slugs (codex-auto-review) that no picker should offer.
+    if item.get("visibility") != "list":
+        return None
+    display_name = item.get("display_name")
+    context_window = item.get("context_window")
+    modalities = item.get("input_modalities")
+    efforts = [
+        level["effort"]
+        for level in (item.get("supported_reasoning_levels") or [])
+        if isinstance(level, dict) and isinstance(level.get("effort"), str)
+    ]
+    return {
+        "id": slug,
+        "display_name": display_name if isinstance(display_name, str) and display_name else slug,
+        "context_length": context_window if isinstance(context_window, int) else None,
+        "vision": "image" in modalities if isinstance(modalities, list) else None,
+        "reasoning_efforts": efforts,
+    }
+
+
+def cached_subscription_models(provider_id: str) -> list[dict[str, Any]] | None:
+    entry = _models_cache.get(provider_id)
+    if entry is None or entry[0] <= time.time():
+        return None
+    return entry[1]
+
+
+def offered_subscription_model_ids(provider_id: str) -> set[str]:
+    return set(_offered_models.get(provider_id, {}))
+
+
+def offered_subscription_model(provider_id: str, model_id: str) -> dict[str, Any] | None:
+    """What the plan said about one slug, for models the static registry cannot describe."""
+    return _offered_models.get(provider_id, {}).get(model_id)
+
+
+def forget_subscription_models(provider_id: str) -> None:
+    _models_cache.pop(provider_id, None)
+    _offered_models.pop(provider_id, None)
+    _catalog_accounts.pop(provider_id, None)
+
+
+async def list_subscription_models(
+    provider_id: str, access_token: str, account_id: str
+) -> list[dict[str, Any]]:
+    """Model slugs this ChatGPT plan can reach; anything else is a 400 upstream."""
+    if _catalog_accounts.get(provider_id) not in (None, account_id):
+        # Reauthorized against a different account: the previous plan's catalog says
+        # nothing about this one, and nothing else clears it on the reconnect path.
+        forget_subscription_models(provider_id)
+    cached = cached_subscription_models(provider_id)
+    if cached is not None:
+        return cached
+
+    url = _validated_models_url()
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "chatgpt-account-id": account_id,
+        "originator": OPENAI_CODEX_ORIGINATOR,
+        "User-Agent": OPENAI_CODEX_USER_AGENT,
+        "Accept": "application/json",
+    }
+    client = _create_http_client()
+    try:
+        response = await client.get(
+            url,
+            headers = headers,
+            params = {"client_version": OPENAI_CODEX_CLIENT_VERSION},
+        )
+        if response.status_code == 401:
+            raise CodexReauthorizationError(
+                "ChatGPT authorization expired. Reconnect this connection.",
+                status = 401,
+            )
+        if response.status_code != 200:
+            detail = await _upstream_error_detail(response)
+            suffix = f" {detail}" if detail else ""
+            raise CodexTransportError(
+                f"Could not list ChatGPT Codex models ({response.status_code}).{suffix}",
+                status = response.status_code,
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise CodexTransportError("ChatGPT returned an unreadable model list.") from exc
+    except httpx.HTTPError as exc:
+        raise CodexTransportError("Could not reach ChatGPT Codex.") from exc
+    finally:
+        await client.aclose()
+
+    raw = payload.get("models") if isinstance(payload, dict) else None
+    models = [
+        model
+        for model in (_normalize_subscription_model(item) for item in raw or [])
+        if model is not None
+    ]
+    if len(_models_cache) >= _MODELS_CACHE_MAX_ENTRIES:
+        _models_cache.clear()
+        _offered_models.clear()
+        _catalog_accounts.clear()
+    _models_cache[provider_id] = (time.time() + _MODELS_CACHE_TTL_SECONDS, models)
+    _offered_models[provider_id] = {model["id"]: model for model in models}
+    _catalog_accounts[provider_id] = account_id
+    return models
+
+
+async def ensure_subscription_models(provider_id: str) -> set[str]:
+    """The plan's slugs, fetching them once when this process has none yet.
+
+    The catalog lives in memory, so a restart leaves a saved dynamic slug with
+    nothing to authorize it. Callers use this before refusing such a model; an
+    unreachable or disconnected upstream returns empty so the caller falls back
+    to the seed rather than locking the account out.
+    """
+    listed = offered_subscription_model_ids(provider_id)
+    if listed:
+        return listed
+    try:
+        access_token, account_id = await codex_auth.resolve_access(provider_id)
+        await list_subscription_models(provider_id, access_token, account_id)
+    except Exception:
+        return set()
+    return offered_subscription_model_ids(provider_id)
+
+
 def _quota_metadata(response: httpx.Response) -> dict[str, Any]:
     values = {
         "retry_after": response.headers.get("retry-after"),
@@ -229,8 +389,11 @@ async def _upstream_error_detail(response: httpx.Response) -> str | None:
         message = error.get("message")
         code = error.get("code") or error.get("type")
         detail = message if isinstance(message, str) and message.strip() else code
+    elif isinstance(error, str):
+        detail = error
     else:
-        detail = error if isinstance(error, str) else None
+        # The subscription endpoint reports rejected models as a bare "detail".
+        detail = payload.get("detail") if isinstance(payload, dict) else None
     if not isinstance(detail, str):
         return None
     return " ".join(detail.split())[:500] or None

@@ -40,9 +40,12 @@ import { ApiProviderLogo } from "./api-provider-logo";
 
 import { OpenAICodexConnect } from "./openai-codex-connect";
 import {
+  type CodexSubscriptionModels,
+  type ProviderAuthStatus,
   type ProviderRegistryEntry,
   createProviderConfig,
   deleteProviderConfig,
+  fetchCodexSubscriptionModels,
   listProviderModels,
   listProviderRegistry,
   testProviderConnection,
@@ -152,6 +155,23 @@ interface ChatProvidersSettingsProps {
   providers: ExternalProviderConfig[];
   onProvidersChange: (providers: ExternalProviderConfig[]) => void;
 }
+
+export function resolveCodexPickerModels(
+  curated: string[],
+  savedModels: string[],
+  listed: CodexSubscriptionModels | null,
+): { catalog: string[]; selected: string[] } {
+  // Only the plan's own catalog can retire a saved slug. The backend answers with the
+  // curated seed when it could not reach upstream, so treating that as the catalog
+  // would drop a saved model and the next unrelated save would make the loss stick.
+  const planListed = listed?.source === "subscription" && listed.models.length > 0;
+  const catalog = planListed
+    ? listed.models.map((model) => model.id)
+    : [...new Set([...curated, ...savedModels])];
+  const offered = new Set(catalog);
+  return { catalog, selected: savedModels.filter((model) => offered.has(model)) };
+}
+
 
 export function ChatProvidersSettings({
   providers,
@@ -942,6 +962,26 @@ export function ChatProvidersSettings({
     }
   }
 
+  async function applyCodexSubscriptionModels(
+    providerId: string,
+    savedModels: string[],
+    authStatus: ProviderAuthStatus | undefined,
+  ) {
+    const curated = registryByType.get("openai_codex")?.default_models ?? [];
+    let listed: CodexSubscriptionModels | null = null;
+    if (authStatus === "connected") {
+      try {
+        listed = await fetchCodexSubscriptionModels(providerId);
+      } catch {
+        // Keep the curated seed: the form must still open when upstream is unreachable.
+      }
+    }
+    const picker = resolveCodexPickerModels(curated, savedModels, listed);
+    setAvailableModels(picker.catalog);
+    setSelectedModelIds(picker.selected);
+    setManualModelIds("");
+  }
+
   async function editProvider(provider: ExternalProviderConfig) {
     setEditingProviderId(provider.id);
     autoOpenedAddFormRef.current = true;
@@ -1000,6 +1040,10 @@ export function ChatProvidersSettings({
       setManualModelIds(
         provider.models.filter((model) => !catalogSet.has(model)).join("\n"),
       );
+      return;
+    }
+    if (provider.authKind === "chatgpt_oauth") {
+      await applyCodexSubscriptionModels(provider.id, provider.models, provider.authStatus);
       return;
     }
     const entry = registryByType.get(provider.providerType);
@@ -1446,6 +1490,16 @@ export function ChatProvidersSettings({
                 const synced = await syncExternalProvidersFromBackend(providersRef.current);
                 providersRef.current = synced;
                 onProvidersChange(synced);
+                const connected = synced.find(
+                  (provider) => provider.id === editingProviderId,
+                );
+                if (connected) {
+                  await applyCodexSubscriptionModels(
+                    connected.id,
+                    connected.models,
+                    connected.authStatus,
+                  );
+                }
               }}
             />
           ) : null}
