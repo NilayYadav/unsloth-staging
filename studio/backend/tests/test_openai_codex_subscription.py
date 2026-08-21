@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 
 import threading
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 import asyncio
 import hashlib
 import json
@@ -38,7 +38,12 @@ from core.inference.openai_codex_client import (
     CodexTransportError,
     OpenAICodexClient,
     _responses_input,
+    cached_subscription_models,
+    forget_subscription_models,
+    list_subscription_models,
+    offered_subscription_model_ids,
 )
+from core.inference import openai_codex_client as codex_client
 
 from core.inference.openai_responses_shared import normalize_function_schema
 from core.inference.providers import get_provider_info, list_available_providers
@@ -58,7 +63,6 @@ def test_protocol_constants_and_curated_provider_contract():
     assert info["base_url_editable"] is False
     assert info["model_ids_editable"] is False
     assert info["default_models"] == [
-        "gpt-5.3-codex-spark",
         "gpt-5.4",
         "gpt-5.4-mini",
         "gpt-5.5",
@@ -728,6 +732,203 @@ def test_structured_upstream_error_is_actionable_and_bounded():
     assert "secret-token" not in str(error.value)
 
 
+def test_bare_detail_upstream_error_reaches_the_user():
+    """The subscription endpoint reports a rejected model as a bare "detail"."""
+
+    class FakeStream:
+        async def __aenter__(self):
+            return __import__("httpx").Response(
+                400,
+                json = {
+                    "detail": (
+                        "The 'gpt-5.3-codex-spark' model is not supported when using "
+                        "Codex with a ChatGPT account."
+                    )
+                },
+            )
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class FakeClient:
+        def stream(self, *_args, **_kwargs):
+            return FakeStream()
+
+        async def aclose(self):
+            return None
+
+    async def run():
+        client = OpenAICodexClient("secret-token", "acct-1")
+        await client._client.aclose()
+        client._client = FakeClient()
+        try:
+            return [
+                line
+                async for line in client.stream(
+                    provider_id = "provider",
+                    thread_id = "thread",
+                    messages = [{"role": "user", "content": "hello"}],
+                    model = "gpt-5.3-codex-spark",
+                    max_tokens = None,
+                    reasoning_effort = None,
+                    tools = None,
+                    tool_choice = None,
+                )
+            ]
+        finally:
+            await client.close()
+
+    with pytest.raises(CodexTransportError) as error:
+        asyncio.run(run())
+    assert error.value.status == 400
+    assert "is not supported" in str(error.value)
+    assert "secret-token" not in str(error.value)
+
+
+def _models_response(payload, status = 200):
+    import httpx
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        async def get(
+            self,
+            url,
+            headers = None,
+            params = None,
+        ):
+            self.calls.append((url, params))
+            return httpx.Response(status, json = payload)
+
+        async def aclose(self):
+            return None
+
+    return FakeClient()
+
+
+def test_subscription_model_list_keeps_only_listable_slugs(monkeypatch):
+    fake = _models_response(
+        {
+            "models": [
+                {
+                    "slug": "gpt-5.4",
+                    "visibility": "list",
+                    "display_name": "GPT-5.4",
+                    "context_window": 272000,
+                    "input_modalities": ["text", "image"],
+                    "supported_reasoning_levels": [
+                        {"effort": "low"},
+                        {"effort": "high"},
+                    ],
+                },
+                # Internal review slug the picker must never offer.
+                {"slug": "codex-auto-review", "visibility": "hide"},
+                {"slug": "", "visibility": "list"},
+                "not-a-model",
+            ]
+        }
+    )
+    monkeypatch.setattr(codex_client, "_create_http_client", lambda: fake)
+    forget_subscription_models("provider-1")
+
+    models = asyncio.run(list_subscription_models("provider-1", "secret-token", "acct-1"))
+
+    assert models == [
+        {
+            "id": "gpt-5.4",
+            "display_name": "GPT-5.4",
+            "context_length": 272000,
+            "vision": True,
+            "reasoning_efforts": ["low", "high"],
+        }
+    ]
+    assert fake.calls[0][0] == f"{OPENAI_CODEX_API_BASE}/codex/models"
+    assert fake.calls[0][1] == {"client_version": codex_auth.OPENAI_CODEX_CLIENT_VERSION}
+    # A second call is served from cache rather than re-hitting upstream.
+    assert asyncio.run(list_subscription_models("provider-1", "secret-token", "acct-1")) == models
+    assert len(fake.calls) == 1
+    # Outlives the cache so a slow save is still accepted by the provider routes.
+    assert offered_subscription_model_ids("provider-1") == {"gpt-5.4"}
+    forget_subscription_models("provider-1")
+    assert cached_subscription_models("provider-1") is None
+    assert offered_subscription_model_ids("provider-1") == set()
+
+
+def test_subscription_catalog_is_dropped_when_the_account_changes(monkeypatch):
+    """A reconnect can bind the same provider row to a different ChatGPT account.
+
+    Nothing on the reauthorization path clears the catalog, so a lookup keyed only by
+    provider would keep serving the previous plan's slugs for the whole TTL.
+    """
+    first = _models_response({"models": [{"slug": "gpt-5.4", "visibility": "list"}]})
+    monkeypatch.setattr(codex_client, "_create_http_client", lambda: first)
+    forget_subscription_models("provider-4")
+    asyncio.run(list_subscription_models("provider-4", "token-a", "acct-a"))
+    assert offered_subscription_model_ids("provider-4") == {"gpt-5.4"}
+
+    second = _models_response({"models": [{"slug": "gpt-5.5", "visibility": "list"}]})
+    monkeypatch.setattr(codex_client, "_create_http_client", lambda: second)
+    # Same provider, new account: the stale catalog must not be served from cache.
+    models = asyncio.run(list_subscription_models("provider-4", "token-b", "acct-b"))
+    assert [model["id"] for model in models] == ["gpt-5.5"]
+    assert offered_subscription_model_ids("provider-4") == {"gpt-5.5"}
+    assert len(second.calls) == 1
+    forget_subscription_models("provider-4")
+
+
+def test_subscription_model_list_rejects_non_200(monkeypatch):
+    monkeypatch.setattr(
+        codex_client,
+        "_create_http_client",
+        lambda: _models_response({"detail": "Not Found"}, status = 404),
+    )
+    forget_subscription_models("provider-2")
+
+    with pytest.raises(CodexTransportError) as error:
+        asyncio.run(list_subscription_models("provider-2", "secret-token", "acct-1"))
+    assert error.value.status == 404
+    assert "secret-token" not in str(error.value)
+    assert cached_subscription_models("provider-2") is None
+
+
+def test_model_route_falls_back_to_curated_when_upstream_is_unusable(monkeypatch):
+    from routes import openai_codex_auth as codex_routes
+
+    curated = get_provider_info("openai_codex")["default_models"]
+    monkeypatch.setattr(codex_routes, "_provider", lambda provider_id: {"id": provider_id})
+
+    def call():
+        return asyncio.run(
+            codex_routes.list_subscription_models(
+                "provider-3", _credential = ("user", "session"), via_api_key = False
+            )
+        )
+
+    monkeypatch.setattr(codex_routes.codex_auth, "auth_status", lambda _id: "disconnected")
+    disconnected = call()
+    assert disconnected["source"] == "curated"
+    assert [model["id"] for model in disconnected["models"]] == curated
+
+    async def _resolve(_provider_id):
+        return "secret-token", "acct-1"
+
+    async def _boom(*_args, **_kwargs):
+        raise CodexTransportError("upstream is down")
+
+    monkeypatch.setattr(codex_routes.codex_auth, "auth_status", lambda _id: "connected")
+    monkeypatch.setattr(codex_routes.codex_auth, "resolve_access", _resolve)
+    monkeypatch.setattr(codex_routes.codex_client, "list_subscription_models", _boom)
+    assert call()["source"] == "curated"
+
+    async def _models(*_args, **_kwargs):
+        return [{"id": "gpt-5.6-terra", "display_name": "GPT-5.6-Terra", "context_length": 272000}]
+
+    monkeypatch.setattr(codex_routes.codex_client, "list_subscription_models", _models)
+    live = call()
+    assert live["source"] == "subscription"
+    assert [model["id"] for model in live["models"]] == ["gpt-5.6-terra"]
+
+
 def test_client_never_emits_done_marker_itself():
     # The route owns the one Chat-Completions [DONE] marker.
     assert not any("[DONE]" in line for line in asyncio.run(_successful_stream_lines()))
@@ -1186,3 +1387,213 @@ def test_codex_tool_budget_resolves_parallel_overflow_without_executing_it(monke
     # are no longer the tail of the conversation.
     assert replayed[-1]["role"] == "user"
     assert "provide your final answer now" in replayed[-1]["content"]
+
+
+def _codex_chat_gate(
+    monkeypatch,
+    model: str,
+    resolve = None,
+):
+    """Drive the chat route far enough to answer "may this model be used?".
+
+    The gate is one line inside ``_proxy_to_external_provider`` and is only
+    reachable through the route, so the access resolver is stubbed to raise: a
+    401 means the model was accepted and the request moved on, a 400 means it
+    was refused.
+    """
+    from fastapi import HTTPException
+    from models.inference import ChatCompletionRequest
+    from routes import inference as inf
+
+    monkeypatch.setattr(
+        inf.providers_db,
+        "get_provider",
+        lambda _pid: {
+            "id": _pid,
+            "provider_type": "openai_codex",
+            "base_url": OPENAI_CODEX_API_BASE,
+            "display_name": "ChatGPT subscription",
+            "is_enabled": True,
+        },
+    )
+
+    async def _refuse(*_args, **_kwargs):
+        raise codex_auth.CodexAuthError("stub: past the model gate")
+
+    monkeypatch.setattr(codex_auth, "resolve_access", resolve or _refuse)
+
+    async def _is_disconnected():
+        return False
+
+    request = SimpleNamespace(
+        headers = {},
+        state = SimpleNamespace(skip_api_monitor = True),
+        is_disconnected = _is_disconnected,
+    )
+    payload = ChatCompletionRequest(
+        messages = [{"role": "user", "content": "hello"}],
+        provider_id = "codex-1",
+        external_model = model,
+        stream = True,
+    )
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(inf._proxy_to_external_provider(payload, request, current_subject = "t"))
+    return excinfo.value
+
+
+def test_chat_accepts_a_plan_listed_slug_the_seed_does_not_carry(monkeypatch):
+    """A slug the picker offered and the provider routes saved must be chattable.
+
+    ``/codex/models`` is the truth once connected, so a plan can list a model
+    newer than the curated seed. The provider routes accept saving it; gating
+    the chat route on the seed alone would reject the very model the user just
+    picked, on every message.
+    """
+    listed = "gpt-5.7-nova"
+    assert listed not in get_provider_info("openai_codex")["default_models"]
+
+    forget_subscription_models("codex-1")
+    refused = _codex_chat_gate(monkeypatch, listed)
+    assert refused.status_code == 400
+    assert "Choose a curated Codex model." in str(refused.detail)
+
+    # Exactly what a picker fetch records for this connection.
+    codex_client._offered_models["codex-1"] = {
+        listed: {"id": listed, "display_name": listed, "vision": True}
+    }
+    try:
+        accepted = _codex_chat_gate(monkeypatch, listed)
+        assert accepted.status_code == 401, accepted.detail
+        assert "Choose a curated Codex model." not in str(accepted.detail)
+        # A slug no plan ever listed is still refused.
+        never_listed = _codex_chat_gate(monkeypatch, "gpt-5.3-codex-spark")
+        assert never_listed.status_code == 400
+        assert "Choose a curated Codex model." in str(never_listed.detail)
+    finally:
+        forget_subscription_models("codex-1")
+
+
+def test_chat_refetches_the_plan_catalog_after_a_restart(monkeypatch):
+    """A restart empties the in-memory catalog; the saved slug must still work.
+
+    Nothing refetches /codex/models on startup, so gating on the seed alone would
+    reject a model the user legitimately saved until they reopened the connection
+    editor.
+    """
+    listed = "gpt-5.7-nova"
+    forget_subscription_models("codex-1")
+
+    calls = []
+
+    async def _resolve(_provider_id):
+        calls.append(_provider_id)
+        # The gate's refresh resolves first; the chat path's own call then stops
+        # the request before it can reach upstream.
+        if len(calls) > 1:
+            raise codex_auth.CodexAuthError("stub: past the model gate")
+        return "secret-token", "acct-1"
+
+    fake = _models_response(
+        {"models": [{"slug": listed, "visibility": "list", "input_modalities": ["text"]}]}
+    )
+    monkeypatch.setattr(codex_client, "_create_http_client", lambda: fake)
+    try:
+        # Cold cache, exactly as after a restart: the gate fetches rather than refusing.
+        accepted = _codex_chat_gate(monkeypatch, listed, resolve = _resolve)
+        assert accepted.status_code == 401, accepted.detail
+        assert offered_subscription_model_ids("codex-1") == {listed}
+        assert len(calls) == 2
+    finally:
+        forget_subscription_models("codex-1")
+
+
+def test_chat_refuses_when_the_catalog_cannot_be_refreshed(monkeypatch):
+    """An unreachable upstream falls back to the seed instead of locking the user out."""
+    forget_subscription_models("codex-1")
+
+    async def _fail(_provider_id):
+        raise codex_auth.CodexAuthError("disconnected")
+
+    monkeypatch.setattr(codex_auth, "resolve_access", _fail)
+    try:
+        # A seed model still passes the gate.
+        seeded = _codex_chat_gate(monkeypatch, "gpt-5.4")
+        assert seeded.status_code == 401, seeded.detail
+        # An unknown slug is refused rather than proxied blind.
+        refused = _codex_chat_gate(monkeypatch, "gpt-5.7-nova")
+        assert refused.status_code == 400
+    finally:
+        forget_subscription_models("codex-1")
+
+
+def test_chat_reads_vision_support_from_the_plan_catalog(monkeypatch):
+    """A dynamic slug's image support comes from /codex/models, not the static registry."""
+    from fastapi import HTTPException
+    from models.inference import ChatCompletionRequest
+    from routes import inference as inf
+
+    listed = "gpt-5.7-nova"
+    assert listed not in get_provider_info("openai_codex")["model_capabilities"]
+
+    monkeypatch.setattr(
+        inf.providers_db,
+        "get_provider",
+        lambda _pid: {
+            "id": _pid,
+            "provider_type": "openai_codex",
+            "base_url": OPENAI_CODEX_API_BASE,
+            "display_name": "ChatGPT subscription",
+            "is_enabled": True,
+        },
+    )
+
+    async def _refuse(*_args, **_kwargs):
+        raise codex_auth.CodexAuthError("stub: past the image gate")
+
+    monkeypatch.setattr(codex_auth, "resolve_access", _refuse)
+
+    async def _is_disconnected():
+        return False
+
+    def call():
+        request = SimpleNamespace(
+            headers = {},
+            state = SimpleNamespace(skip_api_monitor = True),
+            is_disconnected = _is_disconnected,
+        )
+        payload = ChatCompletionRequest(
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+                        },
+                    ],
+                }
+            ],
+            provider_id = "codex-1",
+            external_model = listed,
+            stream = True,
+        )
+        with pytest.raises(HTTPException) as excinfo:
+            asyncio.run(inf._proxy_to_external_provider(payload, request, current_subject = "t"))
+        return excinfo.value
+
+    codex_client._offered_models["codex-1"] = {
+        listed: {"id": listed, "display_name": listed, "vision": False}
+    }
+    try:
+        refused = call()
+        assert refused.status_code == 400
+        assert "does not accept image input" in str(refused.detail)
+        # The same slug listed as image-capable is carried through to the provider.
+        codex_client._offered_models["codex-1"] = {
+            listed: {"id": listed, "display_name": listed, "vision": True}
+        }
+        accepted = call()
+        assert accepted.status_code == 401, accepted.detail
+        assert "does not accept image input" not in str(accepted.detail)
+    finally:
+        forget_subscription_models("codex-1")
