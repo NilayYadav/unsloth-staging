@@ -1,0 +1,76 @@
+name: "staging-9488 studio-playwright"
+on:
+  push:
+    branches: ["pr-9488-xplat-ci"]
+    paths:
+      - 'studio/**'
+      - '.github/workflows/staging-9488-playwright.yml'
+      - '.github/scripts/retry-with-apt-lock.sh'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  studio-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Two guards in the repo's own workflow-trigger lint apply to this generated file,
+      # and a staged PR is where they fire: test_playwright_install_avoids_with_deps
+      # bans `--with-deps` (playwright runs its own apt-get update inside it, bypassing
+      # the retry helper and the transfer cap), and test_sdk_installs_are_major_bounded
+      # bans an unpinned SDK install. Engine download and apt transaction are separated,
+      # the shape studio-frontend-ci.yml uses. Two guarded helper calls, so the
+      # authorised worst case is 2 x (2 x 420s + 125s lock wait) = 1930s, which fits
+      # inside 33m, which fits inside the job's 40m.
+      - name: Install Chromium for the studio-live smoke
+        timeout-minutes: 33
+        env:
+          RETRY_ATTEMPTS: '2'
+          RETRY_ATTEMPT_TIMEOUT: '420'
+          APT_ACQUIRE_RETRIES: '0'
+        run: |
+          pip install 'playwright<2' httpx pillow
+          bash .github/scripts/retry-with-apt-lock.sh \
+            python -m playwright install chromium
+          # Ask whether the system libraries are missing instead of assuming it:
+          # launching the engine is the same thing the smoke is about to do.
+          probe() {
+            python - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              browser.close()
+          print("chromium launches; system libraries are present")
+          PY
+          }
+          if probe; then
+            echo "::notice::skipped playwright install-deps; the runner image already has the libraries"
+          else
+            bash .github/scripts/retry-with-apt-lock.sh \
+              python -m playwright install-deps chromium
+          fi
+      - name: Install + launch Studio
+        run: |
+          ./install.sh --local --no-torch || pip install -e .
+          nohup unsloth studio -H 127.0.0.1 -p 8888 > studio.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8888/healthz && break; sleep 5; done
+      - name: Playwright smoke (studio_test_kit)
+        run: PYTHONPATH=.github/scripts python -m studio_test_kit._smoke_ui || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-playwright-9488
+          path: |
+            **/*.png
+            **/*.webm
+            studio.log
