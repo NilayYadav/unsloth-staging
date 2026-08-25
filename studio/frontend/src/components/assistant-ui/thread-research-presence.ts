@@ -31,14 +31,36 @@ export type ResearchPresenceMessage = { metadata?: unknown };
 
 const presenceByMessages = new WeakMap<object, boolean>();
 
-/** Whether any message carries `metadata.custom.researchRunId` as a string. */
+/**
+ * Whether a message holds the thread's spent research: a run that finished.
+ *
+ * A run still going keeps the toggle lit rather than taking it away, and a stopped run is
+ * re-pointed at the next question rather than refused, so neither counts here -- otherwise the
+ * composer hides deep research for a thread that is researching or would still research.
+ * A run id with no status at all is older metadata and counts, to stay on the safe side.
+ */
 export function messageHasResearchRunId(
   message: ResearchPresenceMessage,
 ): boolean {
   const custom = (
-    message.metadata as { custom?: { researchRunId?: unknown } } | undefined
+    message.metadata as
+      | {
+          custom?: {
+            researchRunId?: unknown;
+            researchStatus?: unknown;
+            researchRun?: { status?: unknown };
+          };
+        }
+      | undefined
   )?.custom;
-  return typeof custom?.researchRunId === "string";
+  if (typeof custom?.researchRunId !== "string") {
+    return false;
+  }
+  const status = custom.researchRun?.status ?? custom.researchStatus;
+  if (typeof status !== "string") {
+    return true;
+  }
+  return status === "completed" || status === "failed";
 }
 
 /** @param messages the thread's message array, used as the revision key. */

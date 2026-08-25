@@ -1,0 +1,179 @@
+# Reproduction + fix verification for unslothai/unsloth#9726, staged onto fresh upstream main.
+#
+# Two bugs, each proved by changing ONE thing and nothing else:
+#   1. the frontend read any tool_end for deep_research as "the tool ran", so a call the user
+#      DENIED (and one the call budget refused) still started the chat's single research run,
+#      and the Allow / Deny card was never drawn at all;
+#   2. an armed turn on an external provider never asked for Studio's tool loop, so the model
+#      was never shown deep_research and arming Deep Research did nothing.
+name: PR 9726 Deep Research handoff repro
+
+on:
+  push:
+    branches:
+      - pr-9726-mimir-pr9726-20260825221007-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr9726-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  handoff:
+    name: Denied call must not start research
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install \
+            python-multipart aiofiles sqlalchemy cryptography psutil \
+            pyyaml jinja2 mammoth unpdf requests \
+            'numpy<3' pytest pytest-asyncio pytest-timeout httpx
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch>=2.4,<2.11'
+          pip install 'transformers>=4.51,<5.5'
+
+      # Not a fixture: the real loop, the real catalog, a scripted model. Writes the exact
+      # tool_start / tool_end frames a browser receives when the call runs, when the user
+      # denies it, and when the call budget refuses it.
+      - name: Capture the events Studio's loop really publishes
+        run: python ci_capture_deep_research_events.py
+
+      - name: Show the captured frames
+        run: cat deep-research-events.json
+
+      # BEFORE is transcribed from the adapter at 6e91f09b6 and checked against that file;
+      # AFTER is the shipped helper. Same events, same probe, only the reading changes.
+      - name: A/B the handoff against those events
+        run: node --experimental-strip-types ci_handoff_ab.mjs
+
+      - name: The loop's own contract, as the fix reads it
+        working-directory: studio/backend
+        run: |
+          python -m pytest tests/test_deep_research_handoff_simulation.py -v --tb=short --timeout=300
+
+      - name: The helper's unit tests
+        working-directory: studio/frontend
+        run: node --experimental-strip-types --test tests/deep-research-handoff.test.ts
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: deep-research-events
+          path: deep-research-events.json
+          if-no-files-found: warn
+
+  external-provider:
+    name: Armed research must reach an external model
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install \
+            python-multipart aiofiles sqlalchemy cryptography psutil \
+            pyyaml jinja2 mammoth unpdf requests \
+            'numpy<3' pytest pytest-asyncio pytest-timeout httpx
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch>=2.4,<2.11'
+          pip install 'transformers>=4.51,<5.5'
+
+      - name: The fix is in place -- the tool reaches the model
+        run: python ci_external_gate_ab.py
+
+      # Strip the two-line guard and nothing else. The composer body, the probe, the
+      # dependencies and the runner are identical to the step above.
+      - name: Strip the fix and reproduce the no-op
+        run: |
+          python ci_strip_external_gate.py
+          python ci_external_gate_ab.py --negative
+
+      - name: The regression test fails without the fix, passes with it
+        working-directory: studio/backend
+        run: |
+          set +e
+          python -m pytest tests/test_run_tools_locally_discriminator.py -k armed_research -q --timeout=300
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "FAIL: the regression test passed against the stripped code"
+            exit 1
+          fi
+          echo "PASS: the regression test reproduces the no-op (pytest exit $rc)"
+          cd "$GITHUB_WORKSPACE"
+          git checkout -- studio/backend/routes/inference.py
+          cd studio/backend
+          python -m pytest tests/test_run_tools_locally_discriminator.py -k armed_research -q --timeout=300
+
+  merged-with-main:
+    name: The PR's own suites on fresh main
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install \
+            python-multipart aiofiles sqlalchemy cryptography psutil \
+            pyyaml jinja2 mammoth unpdf requests \
+            'numpy<3' pytest pytest-asyncio pytest-timeout httpx
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch>=2.4,<2.11'
+          pip install 'transformers>=4.51,<5.5'
+
+      - name: Backend suites the PR touches
+        working-directory: studio/backend
+        run: |
+          python -m pytest -q --tb=short --timeout=600 \
+            tests/test_deep_research_handoff_simulation.py \
+            tests/test_research_runs_storage.py \
+            tests/test_run_tools_locally_discriminator.py \
+            tests/test_external_hosted_tool_passthrough.py
+
+      - name: The frontend/backend contract
+        run: PYTHONPATH=. python -m pytest -q --tb=short tests/studio/test_deep_research_frontend_contract.py
+
+      - name: Frontend unit tests
+        working-directory: studio/frontend
+        run: |
+          npm ci
+          npm test
