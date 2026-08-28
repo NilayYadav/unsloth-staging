@@ -59,8 +59,14 @@ jobs:
           python .mimir-repro/repro.py --repo . --arm after \
             --turns "$TURNS" --server-window "$SERVED_WINDOW" --out after.json
 
+      - name: Control - recognized model, no Unsloth env
+        run: |
+          python .mimir-repro/repro.py --repo . --arm control --plain-env \
+            --model claude-sonnet-4-5 --turns 18 --server-window 200000 \
+            --filler-chars 40000 --out control.json
+
       - name: Assert the A/B
-        run: python .mimir-repro/check.py before.json after.json
+        run: python .mimir-repro/check.py before.json after.json control.json
 
       - name: Upload reports
         if: always()
@@ -70,5 +76,6 @@ jobs:
           path: |
             before.json
             after.json
+            control.json
             claude-version.txt
           if-no-files-found: warn

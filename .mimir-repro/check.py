@@ -11,6 +11,7 @@ def load(path):
 
 def main():
     before, after = load(sys.argv[1]), load(sys.argv[2])
+    control = load(sys.argv[3]) if len(sys.argv) > 3 else None
     served = after["server_window"]
     checks = [
         ("before: claude resolves the unknown-model default, not the served window",
@@ -22,8 +23,13 @@ def main():
         ("after: no request overruns the served window",
          len(after["overflow_prompt_tokens"]) == 0),
     ]
+    if control is not None:
+        checks.append((
+            "control: print mode never auto-compacts, even for a recognized model "
+            "with no Unsloth env, so neither arm's turn count measures compaction",
+            control["compactions"] == 0 and len(control["overflow_prompt_tokens"]) > 0))
     print(f"served window: {served}")
-    for arm in (before, after):
+    for arm in [a for a in (before, after, control) if a is not None]:
         print(f"\n[{arm['arm']}] CLAUDE_CODE_MAX_CONTEXT_TOKENS={arm['env_max_context_tokens']} "
               f"CLAUDE_CODE_AUTO_COMPACT_WINDOW={arm['env_auto_compact_window']}")
         print(f"[{arm['arm']}] resolved contextWindow: {arm['resolved_context_window']}")
@@ -31,6 +37,7 @@ def main():
               f"  first failure: turn {arm['first_failed_turn']}")
         print(f"[{arm['arm']}] largest prompt sent: {arm['max_prompt_tokens']} tokens"
               f"  server rejections: {arm['overflow_prompt_tokens']}")
+        print(f"[{arm['arm']}] compaction requests seen by the server: {arm['compactions']}")
     print()
     failed = [name for name, ok in checks if not ok]
     for name, ok in checks:
