@@ -13,9 +13,13 @@ permissions:
 
 jobs:
   repro:
-    name: "Targeted repro"
+    name: "Targeted repro (llama.cpp ${{ matrix.tag }})"
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ["b10639", "b10679"]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -29,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=b10679
+          TAG=${{ matrix.tag }}
           curl -fsSL -o llama.tar.gz "https://github.com/ggml-org/llama.cpp/releases/download/${TAG}/llama-${TAG}-bin-ubuntu-x64.tar.gz"
           mkdir -p llama && tar -xzf llama.tar.gz -C llama
           BIN=$(find llama -type f -name 'llama-server' | head -1)
@@ -63,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/pr9923_grammar_probe.py
+          LLAMA_TAG=${{ matrix.tag }} python3 .github/scripts/pr9923_grammar_probe.py
 
       - name: "llama-server log tail"
         shell: bash

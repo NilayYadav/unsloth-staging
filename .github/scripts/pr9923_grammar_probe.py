@@ -95,14 +95,14 @@ def main():
     rf_filter = ns["_llama_compatible_response_format"]
     failures = []
 
-    print(f"== llama-server: {BASE}")
+    print(f"== llama-server: {BASE}  build={os.environ.get('LLAMA_TAG','?')}")
     print(f"== shipped limit table: {dict(sorted(limits.items()))}\n")
 
     print("== A. derive each keyword's first non-compiling bound")
     for keyword in sorted(limits):
         claimed = limits[keyword]
         print(f"  {keyword}: claimed highest compilable = {claimed}")
-        got, body = first_failing(keyword, claimed - 1, claimed + 2)
+        got, body = first_failing(keyword, claimed - 3, claimed + 3)
         if got == claimed + 1:
             print(f"    OK: first failure at {got}, exactly one past the shipped limit\n")
         else:
