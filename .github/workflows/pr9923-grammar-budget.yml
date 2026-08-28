@@ -1,0 +1,72 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 9923 grammar rule budget repro"
+
+on:
+  push:
+    branches:
+      - "pr-9923-mimir-skill-e2e-pr-9923-20260828231008-ci"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Fetch a pinned llama-server"
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=b10679
+          curl -fsSL -o llama.tar.gz "https://github.com/ggml-org/llama.cpp/releases/download/${TAG}/llama-${TAG}-bin-ubuntu-x64.tar.gz"
+          mkdir -p llama && tar -xzf llama.tar.gz -C llama
+          BIN=$(find llama -type f -name 'llama-server' | head -1)
+          test -n "$BIN" || { echo 'llama-server not found in release tarball'; find llama -type f | head -40; exit 1; }
+          chmod +x "$BIN"
+          echo "LLAMA_BIN=$PWD/$BIN" >> "$GITHUB_ENV"
+          find llama -type d -name lib -o -type f -name '*.so*' | head -5
+          echo "LD_LIBRARY_PATH=$PWD/$(dirname "$BIN")" >> "$GITHUB_ENV"
+          echo "llama.cpp build: $TAG"
+
+      - name: "Fetch the smallest GGUF that can hold a grammar"
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o stories260K.gguf "https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf"
+          ls -la stories260K.gguf
+
+      - name: "Start llama-server"
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_BIN" -m stories260K.gguf --port 8080 --host 127.0.0.1 -c 512 --chat-template chatml --no-webui > llama-server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/health > /dev/null 2>&1; then echo "server healthy after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo 'server did not become healthy'; cat llama-server.log; exit 1
+
+      - name: "Probe the grammar rule budget and A/B the shipped filter"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/pr9923_grammar_probe.py
+
+      - name: "llama-server log tail"
+        shell: bash
+        run: |
+          tail -40 llama-server.log || true
+
