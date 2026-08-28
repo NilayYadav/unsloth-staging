@@ -1,0 +1,66 @@
+# PR 9941 reproduction: does Claude Code's effort tier reach the chat template,
+# and is thinking-off left alone? One probe, one dependency set, three code
+# regimes -- only the checked-out studio/backend differs between jobs.
+name: PR 9941 effort repro
+
+on:
+  push:
+    branches: ['pr-9941-mimir-skill-e2e-pr-9941-20260828215056-ci']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr9941-effort-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repro:
+    name: ${{ matrix.regime }} (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - regime: base
+            ref: 9640d8c63e5cba21aed350e6326ec21b74b03c4e
+            label: main before PR 9941
+          - regime: prefix
+            ref: 3d7b5f6ee01b9fabc828531b07e398ad77d8bb5e
+            label: PR head before the review fix
+          - regime: fixed
+            ref: 63c69a42b77e562fe222935367d1dd6d5bf67fd2
+            label: PR head
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the upstream objects the matrix pins
+        run: |
+          git remote add upstream https://github.com/unslothai/unsloth
+          git fetch --no-tags upstream main
+          git fetch --no-tags upstream refs/pull/9941/head
+
+      - name: Check out this regime's backend
+        run: |
+          git checkout ${{ matrix.ref }} -- studio/backend
+          echo "studio/backend now at ${{ matrix.ref }} (${{ matrix.label }})"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Install the backend import chain
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            pydantic fastapi sqlalchemy cryptography pyyaml jinja2 \
+            python-multipart psutil httpx aiofiles requests 'numpy<3' \
+            pyjwt structlog filelock
+
+      - name: Probe
+        run: python .github/probes/pr9941_probe.py --regime ${{ matrix.regime }}
