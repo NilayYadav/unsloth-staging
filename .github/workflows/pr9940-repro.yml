@@ -1,0 +1,74 @@
+name: PR 9940 context-window A/B
+
+on:
+  push:
+    branches: [pr-9940-mimir-skill-e2e-pr-9940-20260828215934-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr9940-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 4b52ff56b742050b05a7abad765f7a64377bc3c0
+  SERVED_WINDOW: '65536'
+  TURNS: '12'
+
+jobs:
+  ab:
+    name: served window enforcement (before vs after)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Install harness dependencies
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet typer rich pydantic pyyaml nest-asyncio huggingface-hub structlog click
+          npm install --global @anthropic-ai/claude-code
+          claude --version | tee claude-version.txt
+
+      - name: Arm A - PR change reverted
+        run: |
+          git checkout "$BASE_SHA" -- unsloth_cli/commands/start.py
+          git --no-pager diff --stat HEAD -- unsloth_cli/commands/start.py
+          python .mimir-repro/repro.py --repo . --arm before \
+            --turns "$TURNS" --server-window "$SERVED_WINDOW" --out before.json
+
+      - name: Restore the PR implementation
+        run: |
+          git checkout HEAD -- unsloth_cli/commands/start.py
+          git --no-pager diff --stat HEAD -- unsloth_cli/commands/start.py
+
+      - name: Arm B - PR head
+        run: |
+          python .mimir-repro/repro.py --repo . --arm after \
+            --turns "$TURNS" --server-window "$SERVED_WINDOW" --out after.json
+
+      - name: Assert the A/B
+        run: python .mimir-repro/check.py before.json after.json
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: pr9940-context-window-ab
+          path: |
+            before.json
+            after.json
+            claude-version.txt
+          if-no-files-found: warn
