@@ -24,6 +24,7 @@ import re
 import secrets
 import sqlite3
 import time
+import unicodedata
 import uuid
 from contextlib import contextmanager
 from typing import Annotated, Iterator
@@ -94,12 +95,18 @@ def _availability(available: bool) -> dict:
     }
 
 
-_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
-
-
 def _sanitize_filename(name: str) -> str:
-    base = os.path.basename(name or "").strip() or "document"
-    base = _SAFE.sub("_", base)
+    # A display label, never a path: the bytes are stored at uploads/<uuid><ext>.
+    base = "".join(
+        " " if ch.isspace() else "" if unicodedata.category(ch) in ("Cc", "Cf") else ch
+        for ch in name or ""
+    )
+    # Split on the separators themselves, not ntpath.basename: that reads any single
+    # character before a colon as a drive, and macOS stores a Finder "/" as ":" on disk,
+    # so a dropped "P/L statement.pdf" arrives here as "P:L statement.pdf" and would come
+    # out as "L statement.pdf".
+    base = base.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    base = re.sub(r"\s+", " ", base).strip() or "document"
     if len(base) <= 200:
         return base
     # Trim the stem, not the extension: _save_upload gates on the extension, so
