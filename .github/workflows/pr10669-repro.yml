@@ -1,0 +1,174 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026-present the Unsloth AI Inc. team. All rights reserved.
+
+# Branch-scoped A/B reproduction for unslothai/unsloth#10669.
+# One job, one environment: only studio/backend/routes/inference.py is swapped
+# between the BEFORE (staging main) and AFTER (PR head) halves.
+
+name: PR 10669 Anthropic image KV admission A/B
+
+on:
+  push:
+    branches:
+      - 'pr-10669-mimir-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr10669-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ab:
+    name: Anthropic image reservation, before vs after
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Install backend deps the estimator imports
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography psutil \
+            pyyaml jinja2 requests 'numpy<3' pytest pytest-asyncio pytest-timeout httpx
+          python - <<'EOF'
+          import os, sys
+          sys.path.insert(0, os.path.join(os.getcwd(), "studio", "backend"))
+          import routes.inference  # noqa: F401
+          print("import of routes.inference OK")
+          EOF
+
+      - name: Record the base and head revisions of the changed file
+        run: |
+          git fetch --no-tags origin main || true
+          BASE=$(git rev-parse origin/main 2>/dev/null || git rev-parse FETCH_HEAD)
+          echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "base (no fix)  = $BASE"
+          echo "head (with fix)= $(git rev-parse HEAD)"
+
+      - name: BEFORE - revert only the estimator, keep the PR's tests
+        run: |
+          git checkout "$BASE_SHA" -- studio/backend/routes/inference.py
+          git --no-pager diff --stat HEAD -- studio/backend/routes/inference.py
+
+      - name: BEFORE - probe
+        run: python .github/pr10669/probe.py before | tee before-probe.txt
+
+      - name: BEFORE - the PR's own tests must FAIL here
+        working-directory: studio/backend
+        run: |
+          set +e
+          python -m pytest tests/test_llama_admission_kv_budget_media_and_tools.py \
+            -k TestAnAnthropicImageIsChargedLikeAnyOtherImage -q --timeout=120 \
+            > ../../before-pytest.txt 2>&1
+          echo "BEFORE_PYTEST_RC=$?" >> "$GITHUB_ENV"
+          cat ../../before-pytest.txt
+
+      - name: AFTER - restore the PR's estimator
+        run: |
+          git checkout "$HEAD_SHA" -- studio/backend/routes/inference.py
+          git --no-pager diff --stat HEAD -- studio/backend/routes/inference.py
+
+      - name: AFTER - probe
+        run: python .github/pr10669/probe.py after | tee after-probe.txt
+
+      - name: AFTER - the PR's own tests must PASS here
+        working-directory: studio/backend
+        run: |
+          set +e
+          python -m pytest tests/test_llama_admission_kv_budget_media_and_tools.py \
+            -k TestAnAnthropicImageIsChargedLikeAnyOtherImage -q --timeout=120 \
+            > ../../after-pytest.txt 2>&1
+          echo "AFTER_PYTEST_RC=$?" >> "$GITHUB_ENV"
+          cat ../../after-pytest.txt
+
+      - name: AFTER - the whole touched test file must still pass
+        working-directory: studio/backend
+        run: |
+          python -m pytest tests/test_llama_admission_kv_budget_media_and_tools.py \
+            -q --timeout=300 | tee ../../after-wholefile.txt
+
+      - name: Adjudicate the A/B and write the summary
+        run: |
+          python - <<'EOF' | tee ab-summary.md
+          import json, os, re
+
+          def probe(path):
+              for line in open(path):
+                  if line.startswith("PROBE_JSON "):
+                      return json.loads(line[len("PROBE_JSON "):])
+              raise SystemExit(f"no PROBE_JSON in {path}")
+
+          before, after = probe("before-probe.txt"), probe("after-probe.txt")
+          before_rc = int(os.environ["BEFORE_PYTEST_RC"])
+          after_rc = int(os.environ["AFTER_PYTEST_RC"])
+
+          rows = [
+              ("150 KiB screenshot charged (unclamped budget)",
+               "screenshot_charged_tokens_unclamped"),
+              ("4-char image charged (unclamped budget)",
+               "tiny_image_charged_tokens_unclamped"),
+              ("screenshot / tiny ratio", "screenshot_over_tiny_ratio"),
+              ("reservation against a 32768-token cache",
+               "screenshot_reservation_against_32k_cache"),
+              ("reserves the WHOLE cache", "screenshot_reserves_whole_cache"),
+              ("image chats admitted together, out of 4",
+               "screenshot_chats_admitted_together_out_of_4"),
+          ]
+          print("| measurement | before (main) | after (PR) |")
+          print("| --- | --- | --- |")
+          for label, key in rows:
+              print(f"| {label} | {before[key]} | {after[key]} |")
+          print()
+          print(f"bounded per-image allowance = {after['bounded_image_allowance_tokens']} tokens, "
+                f"equal share of the cache = {after['equal_share_tokens']} tokens")
+          print()
+          print(f"PR tests on the reverted estimator: rc={before_rc} (must be non-zero)")
+          print(f"PR tests on the PR estimator:       rc={after_rc} (must be zero)")
+
+          failures = []
+          if before_rc == 0:
+              failures.append("negative control passed: the PR's tests do not fail on main")
+          if after_rc != 0:
+              failures.append("positive control failed: the PR's tests do not pass at head")
+          if not before["screenshot_reserves_whole_cache"]:
+              failures.append("before-state did not reserve the whole cache")
+          if after["screenshot_reserves_whole_cache"]:
+              failures.append("after-state still reserves the whole cache")
+          if before["screenshot_chats_admitted_together_out_of_4"] != 1:
+              failures.append("before-state admitted more than one image chat")
+          if after["screenshot_chats_admitted_together_out_of_4"] != 4:
+              failures.append("after-state did not admit all four image chats")
+          if after["screenshot_over_tiny_ratio"] > 1.5:
+              failures.append("after-state still prices the image by its base64 length")
+          if failures:
+              print("\nA/B FAILED:")
+              for f in failures:
+                  print(" - " + f)
+              raise SystemExit(1)
+          print("\nA/B OK: the defect reproduces on main and is closed at head.")
+          EOF
+          cat ab-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: pr10669-ab-evidence
+          path: |
+            before-probe.txt
+            after-probe.txt
+            before-pytest.txt
+            after-pytest.txt
+            after-wholefile.txt
+            ab-summary.md
