@@ -44,6 +44,10 @@ check("Cyrillic + digits survive", _sanitize_filename("Отчёт 2026.pdf"), "�
 check("Accents survive", _sanitize_filename("résumé.docx"), "résumé.docx")
 check("A plain space is not an underscore", _sanitize_filename("My Report.pdf"), "My Report.pdf")
 check("Punctuation is not an underscore", _sanitize_filename("Q3: Revenue.pdf"), "Q3: Revenue.pdf")
+# macOS stores a Finder "/" as ":" on disk, so this is the byte sequence a dropped
+# "P/L statement.pdf" arrives as. Its first component is part of the name.
+check("macOS Finder slash survives", _sanitize_filename("P:L statement.pdf"), "P:L statement.pdf")
+check("Drive-relative-looking name survives", _sanitize_filename("C:notes.txt"), "C:notes.txt")
 
 # --- The consequence: two different documents becoming one name. -------------
 check(
