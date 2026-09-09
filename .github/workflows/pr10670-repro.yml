@@ -1,0 +1,66 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 10670 rate-limit repro"
+
+on:
+  push:
+    branches:
+      - "pr-10670-mimir-skill-e2e-pr-10670-20260909221518-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.13"
+
+      - name: "Install the deps these tests import"
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio pytest-timeout structlog fastapi uvicorn pydantic packaging typer pyjwt 'huggingface-hub>=1.23.0,<2.0' diceware 'urllib3>=2.3.0' python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 mammoth unpdf requests 'numpy<3' httpx
+
+      - name: "Which side is this (production files under test)"
+        shell: bash
+        run: |
+          git log --oneline -3
+          echo '--- sha of each production file ---'
+          for f in studio/backend/utils/prebuilt/freshness_flow.py studio/backend/utils/release_notes.py studio/backend/utils/ssm_runtime.py studio/backend/core/training/worker.py studio/install_python_stack.py; do echo "$(git hash-object $f)  $f"; done
+
+      - name: "REPRO 1+5: freshness cache and lockout (studio/backend)"
+        shell: bash
+        run: |
+          cd studio/backend
+          PYTHONPATH=$PWD:$PWD/..:$PWD/../.. python -m pytest tests/test_llama_cpp_freshness.py -p no:cacheprovider -q -k 'redirect_fallback or quota_left or refused_probe or reset_lands_mid_request or cached_normally or concurrent_refusals or permission_403' -rA 2>&1 | tail -50 || true
+
+      - name: "REPRO 2: a refused probe must still reach the slow path (studio/backend)"
+        shell: bash
+        run: |
+          cd studio/backend
+          PYTHONPATH=$PWD:$PWD/..:$PWD/../.. python -m pytest tests/test_wheel_utils_url_exists.py tests/test_sd_cpp_install.py -p no:cacheprovider -q -rA 2>&1 | tail -50 || true
+
+      - name: "REPRO 3+4: mirror lockout and the flash-attn caller (repo root)"
+        shell: bash
+        run: |
+          PYTHONPATH=$PWD/studio/backend:$PWD/studio:$PWD python -m pytest tests/studio/test_update_release_notes.py tests/python/test_flash_attn_install_python_stack.py -p no:cacheprovider -q -k 'rate_limit or unchecked or lock_out or permission_403' -rA 2>&1 | tail -50 || true
+
+      - name: "Gate: every repro group must pass"
+        shell: bash
+        run: |
+          cd studio/backend
+          PYTHONPATH=$PWD:$PWD/..:$PWD/../.. python -m pytest tests/test_llama_cpp_freshness.py tests/test_wheel_utils_url_exists.py tests/test_sd_cpp_install.py -p no:cacheprovider -q -k 'redirect_fallback or quota_left or refused_probe or reset_lands_mid_request or cached_normally or concurrent_refusals or permission_403' || { echo 'FAIL: backend repro group'; exit 1; }
+          cd ../..
+          PYTHONPATH=$PWD/studio/backend:$PWD/studio:$PWD python -m pytest tests/studio/test_update_release_notes.py tests/python/test_flash_attn_install_python_stack.py -p no:cacheprovider -q -k 'rate_limit or unchecked or lock_out or permission_403' || { echo 'FAIL: repo repro group'; exit 1; }
+          echo 'PASS: all repro groups green'
+
