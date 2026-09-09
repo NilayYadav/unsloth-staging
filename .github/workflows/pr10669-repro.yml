@@ -70,8 +70,8 @@ jobs:
         run: |
           set +e
           python -m pytest tests/test_llama_admission_kv_budget_media_and_tools.py \
-            -k TestAnAnthropicImageIsChargedLikeAnyOtherImage -q --timeout=120 \
-            > ../../before-pytest.txt 2>&1
+            -k 'TestAnAnthropicImageIsChargedLikeAnyOtherImage or TestAToolResultScreenshotIsNotPricedByItsBase64' \
+            -q --timeout=120 > ../../before-pytest.txt 2>&1
           echo "BEFORE_PYTEST_RC=$?" >> "$GITHUB_ENV"
           cat ../../before-pytest.txt
 
@@ -88,8 +88,8 @@ jobs:
         run: |
           set +e
           python -m pytest tests/test_llama_admission_kv_budget_media_and_tools.py \
-            -k TestAnAnthropicImageIsChargedLikeAnyOtherImage -q --timeout=120 \
-            > ../../after-pytest.txt 2>&1
+            -k 'TestAnAnthropicImageIsChargedLikeAnyOtherImage or TestAToolResultScreenshotIsNotPricedByItsBase64' \
+            -q --timeout=120 > ../../after-pytest.txt 2>&1
           echo "AFTER_PYTEST_RC=$?" >> "$GITHUB_ENV"
           cat ../../after-pytest.txt
 
@@ -114,22 +114,36 @@ jobs:
           before_rc = int(os.environ["BEFORE_PYTEST_RC"])
           after_rc = int(os.environ["AFTER_PYTEST_RC"])
 
-          rows = [
-              ("150 KiB screenshot charged (unclamped budget)",
-               "screenshot_charged_tokens_unclamped"),
-              ("4-char image charged (unclamped budget)",
-               "tiny_image_charged_tokens_unclamped"),
-              ("screenshot / tiny ratio", "screenshot_over_tiny_ratio"),
-              ("reservation against a 32768-token cache",
-               "screenshot_reservation_against_32k_cache"),
-              ("reserves the WHOLE cache", "screenshot_reserves_whole_cache"),
-              ("image chats admitted together, out of 4",
-               "screenshot_chats_admitted_together_out_of_4"),
+          groups = [
+              ("A user attaching a 150 KiB screenshot (top-level `image` block)", [
+                  ("charged, unclamped budget", "screenshot_charged_tokens_unclamped"),
+                  ("charged for a 4-char image", "tiny_image_charged_tokens_unclamped"),
+                  ("ratio", "screenshot_over_tiny_ratio"),
+                  ("reservation against a 32768-token cache",
+                   "screenshot_reservation_against_32k_cache"),
+                  ("reserves the WHOLE cache", "screenshot_reserves_whole_cache"),
+                  ("such chats admitted together, out of 4",
+                   "screenshot_chats_admitted_together_out_of_4"),
+              ]),
+              ("A tool returning a 150 KiB screenshot (nested in `tool_result`)", [
+                  ("charged, unclamped budget",
+                   "tool_result_screenshot_charged_tokens_unclamped"),
+                  ("charged for a 4-char image", "tool_result_tiny_charged_tokens_unclamped"),
+                  ("ratio", "tool_result_over_tiny_ratio"),
+                  ("reservation against a 32768-token cache",
+                   "tool_result_reservation_against_32k_cache"),
+                  ("reserves the WHOLE cache", "tool_result_reserves_whole_cache"),
+                  ("such chats admitted together, out of 4",
+                   "tool_result_chats_admitted_together_out_of_4"),
+              ]),
           ]
-          print("| measurement | before (main) | after (PR) |")
-          print("| --- | --- | --- |")
-          for label, key in rows:
-              print(f"| {label} | {before[key]} | {after[key]} |")
+          for title, rows in groups:
+              print(f"**{title}**\n")
+              print("| measurement | before (main) | after (PR) |")
+              print("| --- | --- | --- |")
+              for label, key in rows:
+                  print(f"| {label} | {before[key]} | {after[key]} |")
+              print()
           print()
           print(f"bounded per-image allowance = {after['bounded_image_allowance_tokens']} tokens, "
                 f"equal share of the cache = {after['equal_share_tokens']} tokens")
@@ -152,6 +166,16 @@ jobs:
               failures.append("after-state did not admit all four image chats")
           if after["screenshot_over_tiny_ratio"] > 1.5:
               failures.append("after-state still prices the image by its base64 length")
+          if not before["tool_result_reserves_whole_cache"]:
+              failures.append("before-state did not reserve the whole cache for a tool result")
+          if after["tool_result_reserves_whole_cache"]:
+              failures.append("after-state still reserves the whole cache for a tool result")
+          if before["tool_result_chats_admitted_together_out_of_4"] != 1:
+              failures.append("before-state admitted more than one tool-result image chat")
+          if after["tool_result_chats_admitted_together_out_of_4"] != 4:
+              failures.append("after-state did not admit all four tool-result image chats")
+          if after["tool_result_over_tiny_ratio"] > 1.5:
+              failures.append("after-state still prices a tool-result image by its base64 length")
           if failures:
               print("\nA/B FAILED:")
               for f in failures:
