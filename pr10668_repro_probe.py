@@ -69,6 +69,18 @@ check("C3 hosted code_execution image envelope stripped", strip_result_for_model
 
 print()
 print("=" * 78)
+print("D. regression guard: a Gemini code_execution turn that drew TWO figures")
+print("   stacks one envelope per inlineData part - none of it may reach the model")
+print("=" * 78)
+two_plots = (
+    "Figures saved."
+    + "\n__IMAGES__:" + json.dumps(["data:image/png;base64," + "A" * 64])
+    + "\n__IMAGES__:" + json.dumps(["data:image/png;base64," + "B" * 64])
+)
+check("D1 both stacked image envelopes stripped", strip_result_for_model(two_plots, "code_execution"), "Figures saved.")
+
+print()
+print("=" * 78)
 lost = sum(1 for lbl, ok, got, want, _ in checks if not ok)
 for lbl, ok, got, want, _ in checks:
     if not ok:
