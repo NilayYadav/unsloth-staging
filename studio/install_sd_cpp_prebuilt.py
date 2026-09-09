@@ -347,37 +347,6 @@ def _fetch_latest_release(*, token: Optional[str] = None, timeout: float = 30.0)
     return _fetch_release(None, token = token, timeout = timeout)
 
 
-class GitHubRateLimited(RuntimeError):
-    pass
-
-
-def _quota_left(headers: object) -> bool:
-    if headers is None:
-        return False
-    try:
-        return float(str(getattr(headers, "get")("X-RateLimit-Remaining") or "").strip()) > 0
-    except (ValueError, AttributeError, TypeError):
-        return False
-
-
-def _is_rate_limited(exc: BaseException) -> bool:
-    """A refusal that a spent quota explains. A 403 whose headers still report quota is
-    a permission or policy refusal: the other rungs of the ladder may well answer, so it
-    must fall through rather than abort the whole resolution."""
-    if not isinstance(exc, urllib.error.HTTPError) or exc.code not in (403, 429):
-        return False
-    return not _quota_left(getattr(exc, "headers", None))
-
-
-def _rate_limit_message() -> str:
-    hint = (
-        ""
-        if (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"))
-        else "; set GH_TOKEN or GITHUB_TOKEN to lift the 60 requests/hour unauthenticated limit"
-    )
-    return f"GitHub API is rate limiting release lookups{hint}"
-
-
 def _verify_sha256(path: Path, expected_digest: Optional[str]) -> None:
     """Verify ``path`` against a GitHub asset ``digest`` ('sha256:<hex>'). Integrity check
     against a corrupted/tampered download before we extract + execute the binary. When the
@@ -543,28 +512,15 @@ def _download(
     dest: Path,
     *,
     timeout: float = 300.0,
-    attempts: int = 3,
 ) -> None:
     """Stream ``url`` to ``dest`` with an explicit timeout. ``urlretrieve`` takes no
     timeout and can hang forever on a stalled socket. A User-Agent is set because the
-    GitHub asset CDN can reject header-less requests; the API fetch carries any token.
-    Retried, except on 404."""
+    GitHub asset CDN can reject header-less requests; the API fetch carries any token."""
     import shutil
-    import time
 
-    for attempt in range(1, attempts + 1):
-        req = urllib.request.Request(url, headers = {"User-Agent": "unsloth-sd-cpp-installer"})
-        try:
-            with urllib.request.urlopen(req, timeout = timeout) as resp, open(dest, "wb") as f:  # noqa: S310
-                shutil.copyfileobj(resp, f)
-            return
-        except (urllib.error.URLError, OSError) as exc:
-            if isinstance(exc, urllib.error.HTTPError) and exc.code == 404:
-                raise
-            if attempt >= attempts:
-                raise
-            print(f"sd-cli: download failed ({exc}); retrying {attempt}/{attempts - 1}", flush = True)
-            time.sleep(2.0 * attempt)
+    req = urllib.request.Request(url, headers = {"User-Agent": "unsloth-sd-cpp-installer"})
+    with urllib.request.urlopen(req, timeout = timeout) as resp, open(dest, "wb") as f:  # noqa: S310
+        shutil.copyfileobj(resp, f)
 
 
 # PATH_MAX: a link payload is a pathname and ``zf.read`` holds it in memory, so anything larger
@@ -846,10 +802,7 @@ def _resolve_repo_asset(
     asset for this host, so the caller can fall back."""
     try:
         release = _fetch_release(tag, repo = repo, token = token, allow_latest = allow_latest)
-    except Exception as exc:  # noqa: BLE001 - network -> fall back
-        # The whole ladder is one api.github.com quota; the other rungs would fail the same way.
-        if _is_rate_limited(exc):
-            raise GitHubRateLimited(_rate_limit_message()) from exc
+    except Exception as exc:  # noqa: BLE001 - network / rate limit -> fall back
         print(f"sd-cli: {repo} release fetch failed ({exc})", flush = True)
         return None, None
     if release is None:
@@ -1095,11 +1048,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.print_asset:
         # Same primary/fallback resolution as install(), so a host the mirror skips reports the upstream asset, not a
         # false miss.
-        try:
-            _used, _release, chosen = _resolve_with_fallback(args.accelerator, None)
-        except GitHubRateLimited as exc:
-            print(f"error: {exc}", file = sys.stderr)
-            return 2
+        _used, _release, chosen = _resolve_with_fallback(args.accelerator, None)
         print(chosen or "(no matching prebuilt; build from source)")
         return 0 if chosen else 2
 
