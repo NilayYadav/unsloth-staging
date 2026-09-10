@@ -1,0 +1,42 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 10668 sentinel repro"
+
+on:
+  push:
+    branches:
+      - "pr10668-repro-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Install the one import the None-tool path pulls in"
+        shell: bash
+        run: |
+          python -m pip install --quiet structlog
+
+      - name: "Show which implementation is under test"
+        shell: bash
+        run: |
+          python -c "import pathlib,sys; t=pathlib.Path('studio/backend/core/inference/tool_loop_controller.py').read_text(); print('VARIANT:', 'PR-10668 (validated envelope)' if '_strip_images_sentinel' in t else 'main (unvalidated split)')"
+
+      - name: "PR 10668 repro probe (tool result -> model)"
+        shell: bash
+        run: |
+          python pr10668_repro_probe.py
+
