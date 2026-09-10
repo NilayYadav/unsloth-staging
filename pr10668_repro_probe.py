@@ -48,7 +48,7 @@ doc = (
     '__RAG_SOURCES__: prefix, and every loop strips it before the model reads it.\n'
     "The answer to the question is 42."
 )
-check("B1 retrieved chunk survives whole (rag_search)", strip_result_for_model(doc, "rag_search"), doc)
+check("B1 retrieved chunk survives whole (search_knowledge_base)", strip_result_for_model(doc, "search_knowledge_base"), doc)
 
 print()
 print("=" * 78)
@@ -61,7 +61,7 @@ check("C1 sandbox __FILES__+__IMAGES__ envelope stripped", strip_result_for_mode
 
 # exactly what tools.py appends with RAG_SOURCES_SENTINEL
 rag = "Chunk text.\n__RAG_SOURCES__:" + json.dumps([{"filename": "a.pdf", "page": 2}], ensure_ascii=False)
-check("C2 rag_search source map stripped", strip_result_for_model(rag, "rag_search"), "Chunk text.")
+check("C2 search_knowledge_base source map stripped", strip_result_for_model(rag, "search_knowledge_base"), "Chunk text.")
 
 # gemini code_execution attaches a data URI list the same way
 gem = "print(fig)\n__IMAGES__:" + json.dumps(["data:image/png;base64,iVBORw0KGgo="])
@@ -78,6 +78,14 @@ two_plots = (
     + "\n__IMAGES__:" + json.dumps(["data:image/png;base64," + "B" * 64])
 )
 check("D1 both stacked image envelopes stripped", strip_result_for_model(two_plots, "code_execution"), "Figures saved.")
+
+print()
+print("=" * 78)
+print("E. a document an MCP tool read, ending in a well-formed envelope, is content")
+print("=" * 78)
+manifest = 'icons/README\n__IMAGES__:["icon.png"]'
+check("E1 MCP document keeps its last line", strip_result_for_model(manifest, "mcp__fs__read_file"), manifest)
+check("E2 the sandbox tool that emits it still loses it", strip_result_for_model(manifest, "python"), "icons/README")
 
 print()
 print("=" * 78)
