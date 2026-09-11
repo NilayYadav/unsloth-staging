@@ -1,0 +1,32 @@
+{
+  "label": "BEFORE",
+  "sha": "8ee07d6ae61e92544f63a733daf86f9b6a6b0ef2",
+  "served_tree_has_stop_wrapper": false,
+  "chat_page_http_status": 200,
+  "load_http_status": 200,
+  "active_model": "unsloth/Qwen2.5-0.5B-Instruct",
+  "ui_temperature_input_value": "0",
+  "ui_reply": "A sleek red sports car with a powerful engine and a sleek design, ready to take on the world.",
+  "ui_assistant_bubbles": 1,
+  "ui_request_stop_keys": [],
+  "ui_request_temperature": 0,
+  "ui_reply_contains_word": true,
+  "api_control_reply": "A sleek red sports car with a powerful engine and a sleek design, ready to take on the world.",
+  "api_control_finish_reason": "stop",
+  "api_control_completion_tokens": 22,
+  "api_stop_reply": "A sleek red sports car with a powerful engine and a sleek design, ready to take on the world.",
+  "api_stop_finish_reason": "stop",
+  "api_stop_completion_tokens": 22,
+  "api_stop_contains_word": true,
+  "studio_log_tracebacks": [],
+  "ui_generation_endpoints": [
+    "/api/inference/chat-runs",
+    "/api/inference/chat-runs/<run-id>/events?after=0"
+  ],
+  "prompt": "Describe a red sports car in two sentences. Use the word sleek.",
+  "browser": "chromium (playwright 1.55.0)",
+  "viewport": [
+    1280,
+    900
+  ]
+}
