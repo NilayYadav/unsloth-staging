@@ -1,0 +1,130 @@
+{
+  "base": {
+    "gpu": "NVIDIA A10",
+    "gpu_total_gb": 22.06,
+    "HAS_FLASH_ATTENTION": false,
+    "SAFETY_MARGIN": 1.15,
+    "KEEP_FLOOR_GB": 4.0,
+    "cases": [
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "eager",
+        "required_gb": 14.96,
+        "keep_needs_gb": 21.21,
+        "attention_implementation": "eager",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 4,
+        "max_seq_length": 2048,
+        "resolved_attn": "eager",
+        "required_gb": 20.96,
+        "keep_needs_gb": 28.11,
+        "attention_implementation": "eager",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 8192,
+        "resolved_attn": "eager",
+        "required_gb": 104.96,
+        "keep_needs_gb": 124.71,
+        "attention_implementation": "eager",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Qwen2.5-7B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "eager",
+        "required_gb": 13.96,
+        "keep_needs_gb": 20.05,
+        "attention_implementation": "eager",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/gemma-3-27b-it-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "eager",
+        "required_gb": 30.5,
+        "keep_needs_gb": 39.07,
+        "attention_implementation": "eager",
+        "model_weights_gb": null,
+        "activations_gb": null
+      }
+    ]
+  },
+  "head": {
+    "gpu": "NVIDIA A10",
+    "gpu_total_gb": 22.06,
+    "HAS_FLASH_ATTENTION": false,
+    "SAFETY_MARGIN": 1.15,
+    "KEEP_FLOOR_GB": 4.0,
+    "cases": [
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "sdpa",
+        "required_gb": 8.27,
+        "keep_needs_gb": 13.52,
+        "attention_implementation": "sdpa",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 4,
+        "max_seq_length": 2048,
+        "resolved_attn": "sdpa",
+        "required_gb": 8.94,
+        "keep_needs_gb": 14.28,
+        "attention_implementation": "sdpa",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 8192,
+        "resolved_attn": "sdpa",
+        "required_gb": 9.77,
+        "keep_needs_gb": 15.24,
+        "attention_implementation": "sdpa",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/Qwen2.5-7B-Instruct-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "sdpa",
+        "required_gb": 8.22,
+        "keep_needs_gb": 13.46,
+        "attention_implementation": "sdpa",
+        "model_weights_gb": null,
+        "activations_gb": null
+      },
+      {
+        "model": "unsloth/gemma-3-27b-it-bnb-4bit",
+        "batch_size": 2,
+        "max_seq_length": 2048,
+        "resolved_attn": "flex_attention",
+        "required_gb": 21.19,
+        "keep_needs_gb": 28.37,
+        "attention_implementation": "flex_attention",
+        "model_weights_gb": null,
+        "activations_gb": null
+      }
+    ]
+  }
+}

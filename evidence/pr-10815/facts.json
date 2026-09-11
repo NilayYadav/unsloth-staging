@@ -1,0 +1,66 @@
+{
+  "base": {
+    "side": "base",
+    "chat_model": "unsloth/Llama-3.2-3B-Instruct",
+    "train_model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+    "gpu_before_mib": 5,
+    "chat_load_http": 200,
+    "chat_loaded_before_training": [
+      "unsloth/Llama-3.2-3B-Instruct"
+    ],
+    "gpu_with_chat_mib": 2636,
+    "gpu_total_mib": 23028,
+    "train_start_http": 200,
+    "train_start_status": "queued",
+    "training_phase_when_running": "configuring",
+    "chat_loaded_during_training": [],
+    "gpu_during_training_mib": 623,
+    "ui_path": "/chat",
+    "ui_card_visible": false,
+    "ui_eject_rows": [],
+    "training_final_phase": "completed",
+    "training_error": null,
+    "chat_loaded_after_training": [],
+    "peak_gpu_mib_during_training": 6883,
+    "server_decision_lines": [
+      "{\"timestamp\": \"2026-09-11T20:51:56.873148Z\", \"level\": \"info\", \"event\": \"Unloading inference model 'unsloth/Llama-3.2-3B-Instruct' to free GPU memory for training (insufficient VRAM to run training alongside chat)\"}",
+      "{\"timestamp\": \"2026-09-11T20:51:59.026906Z\", \"level\": \"info\", \"event\": \"Freed models for training: ['hf:unsloth/Llama-3.2-3B-Instruct']\"}"
+    ],
+    "gpu_after_cleanup_mib": 5
+  },
+  "head": {
+    "side": "head",
+    "chat_model": "unsloth/Llama-3.2-3B-Instruct",
+    "train_model": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+    "gpu_before_mib": 5,
+    "chat_load_http": 200,
+    "chat_loaded_before_training": [
+      "unsloth/Llama-3.2-3B-Instruct"
+    ],
+    "gpu_with_chat_mib": 2636,
+    "gpu_total_mib": 23028,
+    "train_start_http": 200,
+    "train_start_status": "queued",
+    "training_phase_when_running": "configuring",
+    "chat_loaded_during_training": [
+      "unsloth/Llama-3.2-3B-Instruct"
+    ],
+    "gpu_during_training_mib": 3255,
+    "chat_reply_during_training": "Hello, how are you?",
+    "ui_path": "/chat",
+    "ui_card_visible": true,
+    "ui_eject_rows": [
+      "Eject unsloth/Llama-3.2-3B-Instruct"
+    ],
+    "training_final_phase": "completed",
+    "training_error": null,
+    "chat_loaded_after_training": [
+      "unsloth/Llama-3.2-3B-Instruct"
+    ],
+    "peak_gpu_mib_during_training": 9661,
+    "server_decision_lines": [
+      "{\"timestamp\": \"2026-09-11T20:54:52.705768Z\", \"level\": \"info\", \"event\": \"Keeping resident models loaded during training (free ~19.61 GB, needs ~8.274 GB): {'chat': {'hf': 'unsloth/Llama-3.2-3B-Instruct', 'gguf': None, 'loading': False, 'any': True}, 'stt': {'model': None, 'device': None, 'loading': False, 'any': False}}\"}"
+    ],
+    "gpu_after_cleanup_mib": 5
+  }
+}
