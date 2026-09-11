@@ -1,0 +1,60 @@
+{
+  "before": {
+    "stamp": "8ee07d6ae61e92544f63a733daf86f9b6a6b0ef2",
+    "prompt": "Give three tips for staying healthy.",
+    "csv_rows": 2000,
+    "csv_blank_input_cells": 1198,
+    "train_final_loss": 1.2226303815841675,
+    "train_loss_points": 250,
+    "gguf": "/studio/before/exports/pr10813-gguf/qwen2.5-0.5b.Q8_0.gguf",
+    "inference_status": {
+      "active_model": "qwen2.5-0.5b.Q8_0",
+      "loading": [],
+      "chat_template_override_applied": true
+    },
+    "ui_model_selector_text": "qwen2.5-0.5b.Q8_0\nGGUF \u00b7 Q8_0",
+    "ui_temperature": "0",
+    "ui_top_k": "1",
+    "ui_seed": "3407",
+    "ui_chat_template_row": "Chat Template Custom Edit",
+    "ui_template_dialog_matches_override": true,
+    "ui_reply_starts_with_None": true,
+    "ui_reply_text": "None\n\nResponse:\n\nMaintain a healthy diet: Eating a balanced and nutritious diet is essential for maintaining good health. It is important to consume a variety of fruits, vegetables, whole grains, lean proteins, and healthy fats. Avoid processed foods, sugary drinks, and high-fat foods, as they can contribute to weight gain, obesity, and other health problems.\n\nGet regular exercise: Regular physical activity is crucial for maintaining good health. Aim for at least 150 minutes of moderate-intensity exercise or 75 minutes of vigorous-intensity exercise per week. This can include activities such as walking, jogging, swimming, cycling, or dancing. It is also important to incorporate strength training into your routine to build muscle and improve overall strength.\n\nGet enough sleep: Getting enough sleep is essential for maintaining good health. Aim for 7-9 hours of sleep per night. This can be achieved by establishing a consistent sleep schedule, creating a relaxing bedtime routine, and avoiding caffeine and alcohol before bedtime. It is also important to avoid napping during the day, as this can disrupt your sleep patterns. If you do need to nap, try to limit the duration to 20-30 minutes and avoid napping in the afternoon or evening.",
+    "api_reply": {
+      "status_code": 200,
+      "text": "None\n\n### Response:\n1. Maintain a healthy diet: Eating a balanced and nutritious diet is essential for maintaining good health. It is important to consume a variety of fruits, vegetables, whole grains, lean proteins, and healthy fats. Avoid processed foods, sugary drinks, and excessive intake of unhealthy",
+      "starts_with_None": true
+    },
+    "train_phase": "completed",
+    "export_message": "GGUF model exported successfully (q8_0)"
+  },
+  "after": {
+    "stamp": "69fc48814e4c4b5310588dd44d7b621216349547",
+    "prompt": "Give three tips for staying healthy.",
+    "csv_rows": 2000,
+    "csv_blank_input_cells": 1198,
+    "train_final_loss": 1.2345150709152222,
+    "train_loss_points": 250,
+    "gguf": "/studio/after/exports/pr10813-gguf/qwen2.5-0.5b.Q8_0.gguf",
+    "inference_status": {
+      "active_model": "qwen2.5-0.5b.Q8_0",
+      "loading": [],
+      "chat_template_override_applied": true
+    },
+    "ui_model_selector_text": "qwen2.5-0.5b.Q8_0\nGGUF \u00b7 Q8_0",
+    "ui_temperature": "0",
+    "ui_top_k": "1",
+    "ui_seed": "3407",
+    "ui_chat_template_row": "Chat Template Custom Edit",
+    "ui_template_dialog_matches_override": true,
+    "ui_reply_starts_with_None": false,
+    "ui_reply_text": "2026-09-11\n\nResponse:\nMaintain a healthy diet: Eating a balanced and nutritious diet is essential for maintaining good health. It is important to consume a variety of fruits, vegetables, whole grains, lean proteins, and healthy fats. Avoid processed foods, sugary drinks, and excessive intake of unhealthy fats and sugars.\n\nGet regular exercise: Regular physical activity is crucial for maintaining good health. Aim for at least 150 minutes of moderate-intensity exercise or 75 minutes of vigorous-intensity exercise per week. This can be achieved through activities such as walking, jogging, swimming, cycling, or dancing.\n\nGet enough sleep: Getting enough sleep is essential for maintaining good health. Aim for 7-9 hours of sleep per night. This can be achieved by establishing a regular sleep schedule, creating a comfortable sleep environment, and avoiding caffeine and alcohol before bedtime. Additionally, it is important to avoid napping during the day.",
+    "api_reply": {
+      "status_code": 200,
+      "text": "2026-09-11\n\n### Response:\n1. Maintain a healthy diet: Eating a balanced and nutritious diet is essential for maintaining good health. It is important to consume a variety of fruits, vegetables, whole grains, lean proteins, and healthy fats. Avoid processed foods,",
+      "starts_with_None": false
+    },
+    "train_phase": "completed",
+    "export_message": "GGUF model exported successfully (q8_0)"
+  }
+}
