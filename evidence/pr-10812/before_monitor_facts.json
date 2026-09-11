@@ -1,0 +1,59 @@
+{
+  "label": "BEFORE",
+  "sha": "8ee07d6ae61e92544f63a733daf86f9b6a6b0ef2",
+  "served_tree_has_stop_wrapper": false,
+  "load_http_status": 200,
+  "active_model": "unsloth/Qwen2.5-0.5B-Instruct",
+  "monitor_chat_completion_rows": 2,
+  "ui_chat_completion_row_buttons": 2,
+  "studio_log_tracebacks": [],
+  "json_api_http_status": 200,
+  "json_api_finish_reason": "length",
+  "json_api_completion_tokens": 200,
+  "json_api_seconds": 11.26,
+  "json_api_reply": "```json\n[\n    {\"id\":1,\"ok\":true},\n    {\"id\":2,\"ok\":true},\n    {\"id\":3,\"ok\":true},\n    {\"id\":4,\"ok\":true},\n    {\"id\":5,\"ok\":true},\n    {\"id\":6,\"ok\":true},\n    {\"id\":7,\"ok\":true},\n    {\"id\":8,\"ok\":true},\n    {\"id\":9,\"ok\":true},\n    {\"id\":10,\"ok\":true},\n    {\"id\":11,\"ok\":true},\n    {\"id\":12,\"ok\":true},\n    {\"id\":13,\"ok\":true},\n    {\"id\":14,\"ok\":true},\n    {\"id\":15,\"ok\":true},\n    {\"id\":16,\"ok\":true},\n    {\"id\":17,\"ok\":true},\n    {\"id\":18,\"ok\":true},\n    {\"id\":19,\"",
+  "json_monitor_status": "completed",
+  "json_monitor_stop_reason": "length",
+  "json_monitor_completion_tokens": 200,
+  "json_monitor_duration_ms": 11236,
+  "json_monitor_reply": "```json\n[\n    {\"id\":1,\"ok\":true},\n    {\"id\":2,\"ok\":true},\n    {\"id\":3,\"ok\":true},\n    {\"id\":4,\"ok\":true},\n    {\"id\":5,\"ok\":true},\n    {\"id\":6,\"ok\":true},\n    {\"id\":7,\"ok\":true},\n    {\"id\":8,\"ok\":true},\n    {\"id\":9,\"ok\":true},\n    {\"id\":10,\"ok\":true},\n    {\"id\":11,\"ok\":true},\n    {\"id\":12,\"ok\":true},",
+  "sleek_api_http_status": 200,
+  "sleek_api_finish_reason": "stop",
+  "sleek_api_completion_tokens": 22,
+  "sleek_api_seconds": 0.79,
+  "sleek_api_reply": "A sleek red sports car with a powerful engine and a sleek design, ready to take on the world.",
+  "sleek_monitor_status": "completed",
+  "sleek_monitor_stop_reason": "stop",
+  "sleek_monitor_completion_tokens": 22,
+  "sleek_monitor_duration_ms": 769,
+  "sleek_monitor_reply": "A sleek red sports car with a powerful engine and a sleek design, ready to take on the world.",
+  "ui_detail_pane_selected_request": "json",
+  "ui_detail_pane_values_checked_by_eye": {
+    "Completion tokens": 200,
+    "Stop reason": "length"
+  },
+  "surface": "/api-monitor request detail pane",
+  "browser": "chromium (playwright 1.55.0)",
+  "viewport": [
+    1500,
+    1000
+  ],
+  "requests": [
+    {
+      "key": "json",
+      "prompt": "Output a minified JSON array of 30 objects like {\"id\":1,\"ok\":true} with no spaces or newlines. Output only JSON.",
+      "stop": [
+        "}"
+      ],
+      "max_tokens": 200
+    },
+    {
+      "key": "sleek",
+      "prompt": "Describe a red sports car in two sentences. Use the word sleek.",
+      "stop": [
+        "sleek"
+      ],
+      "max_tokens": 80
+    }
+  ]
+}
