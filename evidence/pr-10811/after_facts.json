@@ -1,0 +1,65 @@
+{
+  "arm": "after",
+  "sha": "6968b9005baee72bf95bc79cea31a173b304931a",
+  "partial": {
+    "scene": "partial",
+    "thread_id": "pr10811-partial-1789160094",
+    "live": {
+      "assistant_messages": 1,
+      "assistant_text": "The three causes of the outage were, first, the expired certificate on the edge proxy; second, the retry storm it Response interrupted. Continue Overloaded (overloaded_error) Retry",
+      "error_box_present": true,
+      "error_text": "Overloaded (overloaded_error)",
+      "retry_button_present": true,
+      "continue_bar_present": true,
+      "continue_bar_text": "Response interrupted. Continue",
+      "continue_button_present": true
+    },
+    "reloaded": {
+      "assistant_messages": 1,
+      "assistant_text": "The three causes of the outage were, first, the expired certificate on the edge proxy; second, the retry storm it Response interrupted. Continue An error occurred Retry",
+      "error_box_present": true,
+      "error_text": "An error occurred",
+      "retry_button_present": true,
+      "continue_bar_present": true,
+      "continue_bar_text": "Response interrupted. Continue",
+      "continue_button_present": true
+    },
+    "persisted_assistant_messages": 1,
+    "persisted_incomplete": {
+      "reason": "interrupted"
+    }
+  },
+  "empty": {
+    "scene": "empty",
+    "thread_id": "pr10811-empty-1789160113",
+    "live": {
+      "assistant_messages": 1,
+      "assistant_text": "Overloaded (overloaded_error) Retry",
+      "error_box_present": true,
+      "error_text": "Overloaded (overloaded_error)",
+      "retry_button_present": true,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "reloaded": {
+      "assistant_messages": 1,
+      "assistant_text": "An error occurred Retry",
+      "error_box_present": true,
+      "error_text": "An error occurred",
+      "retry_button_present": true,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "persisted_assistant_messages": 1,
+    "persisted_incomplete": {
+      "reason": "interrupted"
+    }
+  },
+  "standin_requests": [
+    "partial",
+    "empty"
+  ],
+  "problems": []
+}

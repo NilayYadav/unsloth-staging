@@ -1,0 +1,69 @@
+{
+  "arm": "before",
+  "sha": "9f8ee4f49a1be21ce0ec424e9587a3a4280707fc",
+  "partial": {
+    "scene": "partial",
+    "thread_id": "pr10811-partial-1789160267",
+    "live": {
+      "assistant_messages": 1,
+      "assistant_text": "The three causes of the outage were, first, the expired certificate on the edge proxy; second, the retry storm it",
+      "error_box_present": false,
+      "error_text": "",
+      "retry_button_present": false,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "reloaded": {
+      "assistant_messages": 1,
+      "assistant_text": "The three causes of the outage were, first, the expired certificate on the edge proxy; second, the retry storm it",
+      "error_box_present": false,
+      "error_text": "",
+      "retry_button_present": false,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "persisted_assistant_messages": 1,
+    "persisted_incomplete": null
+  },
+  "empty": {
+    "scene": "empty",
+    "thread_id": "pr10811-empty-1789160285",
+    "live": {
+      "assistant_messages": 1,
+      "assistant_text": "",
+      "error_box_present": false,
+      "error_text": "",
+      "retry_button_present": false,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "reloaded": {
+      "assistant_messages": 1,
+      "assistant_text": "",
+      "error_box_present": false,
+      "error_text": "",
+      "retry_button_present": false,
+      "continue_bar_present": false,
+      "continue_bar_text": "",
+      "continue_button_present": false
+    },
+    "persisted_assistant_messages": 1,
+    "persisted_incomplete": null
+  },
+  "standin_requests": [
+    "partial",
+    "empty"
+  ],
+  "problems": [
+    "partial: live reply shows no Overloaded error",
+    "partial: no Retry button",
+    "partial: no Continue after reload",
+    "partial: persisted incomplete=None",
+    "empty: live reply shows no error",
+    "empty: persisted incomplete=None",
+    "empty: error gone after reload"
+  ]
+}
