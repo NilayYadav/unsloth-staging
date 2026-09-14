@@ -29481,6 +29481,12 @@ async def _responses_non_streaming(
             request_state.skip_api_monitor = previous_skip_monitor
 
 
+def _responses_error_code(exc: Exception) -> str:
+    if _classify_llama_generation_error(exc):
+        return "context_length_exceeded"
+    return "server_error"
+
+
 async def _responses_stream(
     payload: ResponsesRequest,
     messages: list[ChatMessage],
@@ -29585,7 +29591,7 @@ async def _responses_stream(
         api_monitor.fail(monitor_id, str(exc))
         raise _openai_admission_http_exception(exc, status_code = 429)
 
-    def _responses_admission_failed_sse(exc: Exception, *, status_code: int) -> str:
+    def _responses_admission_failed_sse(exc: Exception, *, code: str) -> str:
         # Emitted in-band after the 200 headers, so flag failed: the middleware must not
         # treat this failed stream as a success and claim a preview-owned model.
         mark_response_failed(getattr(request, "scope", None))
@@ -29609,7 +29615,7 @@ async def _responses_stream(
                             "total_tokens": 0,
                         },
                         "error": {
-                            "code": status_code,
+                            "code": code,
                             "message": str(exc),
                         },
                     },
@@ -29983,7 +29989,7 @@ async def _responses_stream(
                 )
             return [item for _, item in sorted(indexed_items, key = lambda pair: pair[0])]
 
-        def _failed_response_payload(exc: Exception, status_code: int) -> dict:
+        def _failed_response_payload(exc: Exception) -> dict:
             # Built only for in-band response.failed events after the 200 headers, so
             # flag failed: the middleware must not treat a failed stream as a success.
             mark_response_failed(getattr(request, "scope", None))
@@ -30002,7 +30008,7 @@ async def _responses_stream(
                         "total_tokens": input_tokens + output_tokens,
                     },
                     "error": {
-                        "code": status_code,
+                        "code": _responses_error_code(exc),
                         "message": _friendly_error(exc),
                     },
                 },
@@ -30071,7 +30077,7 @@ async def _responses_stream(
                             "status": "failed",
                             "model": _clean_model,
                             "output": [],
-                            "error": {"code": 502, "message": _friendly_error(e)},
+                            "error": {"code": "server_error", "message": _friendly_error(e)},
                         },
                     },
                 )
@@ -30101,7 +30107,7 @@ async def _responses_stream(
                             "model": _clean_model,
                             "output": [],
                             "error": {
-                                "code": resp.status_code,
+                                "code": _responses_error_code(RuntimeError(err_text)),
                                 "message": _friendly_upstream_error(err_text[:500]),
                             },
                         },
@@ -30145,7 +30151,7 @@ async def _responses_stream(
                         api_monitor.fail(monitor_id, error_message)
                         yield _sse(
                             "response.failed",
-                            _failed_response_payload(RuntimeError(error_message), 502),
+                            _failed_response_payload(RuntimeError(error_message)),
                         )
                         return
                     _apply_usage(chunk_data.get("usage"), chunk_data.get("timings"))
@@ -30242,10 +30248,9 @@ async def _responses_stream(
             if not disconnect_event.is_set():
                 logger.error("responses stream error: %s", e)
                 api_monitor.fail(monitor_id, _friendly_error(e))
-                status_code = 400 if _classify_llama_generation_error(e) is not None else 500
                 yield _sse(
                     "response.failed",
-                    _failed_response_payload(e, status_code),
+                    _failed_response_payload(e),
                 )
                 return
         except Exception as e:
@@ -30255,10 +30260,9 @@ async def _responses_stream(
                 return
             logger.error("responses stream error: %s", e)
             api_monitor.fail(monitor_id, _friendly_error(e))
-            status_code = 400 if _classify_llama_generation_error(e) is not None else 500
             yield _sse(
                 "response.failed",
-                _failed_response_payload(e, status_code),
+                _failed_response_payload(e),
             )
             return
         finally:
@@ -30591,7 +30595,7 @@ async def _responses_stream(
                 level = "warning",
             )
             api_monitor.fail(monitor_id, str(exc))
-            yield _responses_admission_failed_sse(exc, status_code = 503)
+            yield _responses_admission_failed_sse(exc, code = "server_is_overloaded")
         except LlamaAdmissionCancelled:
             _llama_admission_log(
                 "cancelled-before-upstream",
