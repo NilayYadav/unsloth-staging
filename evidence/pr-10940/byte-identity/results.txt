@@ -1,0 +1,38 @@
+PR 10940 byte-identity: upstream main c78fc38bab vs the same tree with only PR 5c91199's mcp_client.py (trees differ in that one file)
+
+[before] exit=0
+/src/before: 60039 outputs
+[after] exit=0
+/src/after: 60039 outputs
+GROUP stdio: 18/18 byte-identical
+GROUP stdio_model: 18/18 byte-identical
+GROUP fuzz: 30000/30000 byte-identical
+GROUP fuzz_model: 30000/30000 byte-identical
+GROUP control: 0/3 byte-identical
+  DIFF control:audio_only
+    before=''
+    after ='[audio attachment (audio/wav) not shown to the model]'
+  DIFF control:pdf_only
+    before=''
+    after ='[file attachment (application/pdf) <file:///out/r.pdf> not shown to the model]'
+  DIFF control:filesystem_mirror
+    before="{'content': [{'type': 'audio', 'data': 'UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', 'mimeType': 'audio/wav'}]}"
+    after ='[audio attachment (audio/wav) not shown to the model]'
+STDIO t_big: len=250281 sha256=c4b24428b8cd9696 IDENTICAL head='{"k0":{"v":0,"s":""},"k1":{"v":1,"s":"x"},"k2":{"v":2,"s":"xx"},"k3":{"v":3,"s":"xxx"},"k4'
+STDIO t_block_lookalike: len=201 sha256=08d58260ff25b11c IDENTICAL head='{"content":[{"type":"audio","data":"UklGRiQAAABXQVZFZm10IBAAAAABAAEA","mimeType":"audio/wa'
+STDIO t_bool: len=5 sha256=fcbcf165908dd18a IDENTICAL head='false'
+STDIO t_dataclass: len=14 sha256=ca3899d28c865815 IDENTICAL head='{"x":1,"y":-2}'
+STDIO t_dict: len=84 sha256=f88bf3166d1f5882 IDENTICAL head='{"rows":3,"max":41.5,"ok":true,"tags":["a","b"],"nested":{"x":null,"u":"ünïcödé ✓"}}'
+STDIO t_empty_text_structured: len=9 sha256=0d7eb788333d0ffd IDENTICAL head="{'k': ''}"
+STDIO t_error: len=26 sha256=3c93785c9977a4ea IDENTICAL head='Error: boom: plain failure'
+STDIO t_float: len=19 sha256=06bad31060c1212a IDENTICAL head='0.30000000000000004'
+STDIO t_int: len=2 sha256=73475cb40a568e8d IDENTICAL head='42'
+STDIO t_list: len=7 sha256=a615eeaee21de517 IDENTICAL head='[1,2,3]'
+STDIO t_model: len=45 sha256=ceb093ec2ec3714d IDENTICAL head='{"title":"Q3","pages":12,"scores":[1.5,2.25]}'
+STDIO t_multi_text: len=7 sha256=21066d108d5319ec IDENTICAL head='one\ntwo'
+STDIO t_none: len=0 sha256=e3b0c44298fc1c14 IDENTICAL head=''
+STDIO t_resource_link: len=45 sha256=039882031abb4a6a IDENTICAL head='[resource: table.csv <file:///out/table.csv>]'
+STDIO t_str: len=48 sha256=775c7e3a3228f750 IDENTICAL head='plain text with unicode ✓, tab\tand \x1b[31mansi\x1b[0m'
+STDIO t_structured_only: len=27 sha256=59be26c789d1e362 IDENTICAL head="{'a': 1, 'b': [True, None]}"
+STDIO t_text_and_structured: len=2 sha256=8f434346648f6b96 IDENTICAL head='hi'
+STDIO t_text_resource: len=11 sha256=683376e290829b48 IDENTICAL head='line1\nline2'
