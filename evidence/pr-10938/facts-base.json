@@ -1,0 +1,28 @@
+{
+  "side": "base",
+  "head_sha": "d8237325ea538efc3b1a53d323724a0da37dc13c",
+  "codex_version": "0.154.0",
+  "codex_exit_code": "1",
+  "responses_requests": 6,
+  "responses_row_statuses": [
+    "error",
+    "error",
+    "error",
+    "error",
+    "error",
+    "error"
+  ],
+  "responses_row_errors": [
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"",
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"",
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"",
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"",
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"",
+    "{\"error\":{\"code\":400,\"message\":\"request (23690 tokens) exceeds the available context size (4096 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\""
+  ],
+  "codex_reconnect_lines": 5,
+  "codex_max_reconnect": 5,
+  "codex_context_window_message": false,
+  "codex_stream_disconnected": true,
+  "screenshots": true
+}
