@@ -1,0 +1,27 @@
+{
+  "side": "before",
+  "healthy_after_s": 1,
+  "must_change_password": false,
+  "dirs": {
+    "models_dir": "/workspace/models",
+    "lmstudio_dirs": [],
+    "ollama_dirs": [],
+    "hermes_dirs": []
+  },
+  "rows": {
+    "lmstudio": [],
+    "ollama": [],
+    "hermes": [],
+    "models_dir": []
+  },
+  "counts": {
+    "lmstudio": 0,
+    "ollama": 0,
+    "hermes": 0,
+    "models_dir": 0
+  },
+  "ui": {
+    "picker_text": "Search Hub\nRecommended\nOn Device\nAll\nRecent\nNo matching models on device.\nFINE-TUNED\nCUSTOM FOLDERS\nNo matching models in custom folders."
+  },
+  "failures": []
+}

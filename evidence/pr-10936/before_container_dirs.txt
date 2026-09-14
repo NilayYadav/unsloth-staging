@@ -1,0 +1,4 @@
+/root/.lmstudio/models: absent
+/root/.ollama/models: absent
+/root/.hermes/models: absent
+/workspace/models: absent

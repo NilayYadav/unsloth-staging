@@ -1,0 +1,113 @@
+{
+  "side": "after",
+  "healthy_after_s": 1,
+  "must_change_password": false,
+  "dirs": {
+    "models_dir": "/workspace/models",
+    "lmstudio_dirs": [
+      "/root/.lmstudio/models"
+    ],
+    "ollama_dirs": [
+      "/root/.ollama/models"
+    ],
+    "hermes_dirs": [
+      "/root/.hermes/models"
+    ]
+  },
+  "rows": {
+    "lmstudio": [
+      {
+        "display_name": "SmolLM2-135M-Instruct-GGUF",
+        "model_id": "lmstudio-community/SmolLM2-135M-Instruct-GGUF",
+        "path": "/root/.lmstudio/models/lmstudio-community/SmolLM2-135M-Instruct-GGUF",
+        "load_id": "/root/.lmstudio/models/lmstudio-community/SmolLM2-135M-Instruct-GGUF",
+        "model_format": "gguf",
+        "size_bytes": 105454144
+      }
+    ],
+    "ollama": [
+      {
+        "display_name": "smollm:135m (134.52M Q4_0)",
+        "model_id": "ollama/smollm:135m",
+        "path": "/root/.ollama/models/blobs/sha256-eb2c714d40d4b35ba4b8ee98475a06d51d8080a17d2d2a75a23665985c739b94",
+        "load_id": "ollama-manifest:%2Froot%2F.ollama%2Fmodels%2Fmanifests%2Fregistry.ollama.ai%2Flibrary%2Fsmollm%2F135m",
+        "model_format": "gguf",
+        "size_bytes": 0
+      }
+    ],
+    "hermes": [
+      {
+        "display_name": "SmolLM2-135M-Instruct-Q2_K",
+        "model_id": null,
+        "path": "/root/.hermes/models/SmolLM2-135M-Instruct-Q2_K.gguf",
+        "load_id": "/root/.hermes/models/SmolLM2-135M-Instruct-Q2_K.gguf",
+        "model_format": "gguf",
+        "size_bytes": 88201792
+      }
+    ],
+    "models_dir": [
+      {
+        "display_name": "SmolLM2-135M-Instruct-Q3_K_M",
+        "model_id": null,
+        "path": "/workspace/models/SmolLM2-135M-Instruct-Q3_K_M.gguf",
+        "load_id": "/workspace/models/SmolLM2-135M-Instruct-Q3_K_M.gguf",
+        "model_format": "gguf",
+        "size_bytes": 93510208
+      }
+    ]
+  },
+  "counts": {
+    "lmstudio": 1,
+    "ollama": 1,
+    "hermes": 1,
+    "models_dir": 1
+  },
+  "chat": {
+    "lmstudio": {
+      "load_id": "/root/.lmstudio/models/lmstudio-community/SmolLM2-135M-Instruct-GGUF",
+      "load_response_tail": "community/SmolLM2-135M-Instruct-GGUF\",\"display_name\":\"SmolLM2-135M-Instruct-Q4_K_M\",\"is_lora\":false,\"is_gguf\":true,\"is_local_model\":true,\"inference\":{\"temperature\":0.7,\"top_p\":0.95,\"top_k\":-1,\"min_p\":0.01,\"presence_penalty\":0.0,\"trust_remote_code\":false},\"memory_warning\":null,\"carveout_advice\":null}",
+      "loaded": [
+        "SmolLM2-135M-Instruct-GGUF"
+      ],
+      "active_model": "SmolLM2-135M-Instruct-GGUF",
+      "reply": "Hello!",
+      "completion_tokens": 3,
+      "seconds": 1.3
+    },
+    "ollama": {
+      "load_id": "ollama-manifest:%2Froot%2F.ollama%2Fmodels%2Fmanifests%2Fregistry.ollama.ai%2Flibrary%2Fsmollm%2F135m",
+      "load_response_tail": "ifests%2Fregistry.ollama.ai%2Flibrary%2Fsmollm%2F135m\",\"display_name\":\"smollm-135m\",\"is_lora\":false,\"is_gguf\":true,\"is_local_model\":true,\"inference\":{\"temperature\":0.7,\"top_p\":0.95,\"top_k\":-1,\"min_p\":0.01,\"presence_penalty\":0.0,\"trust_remote_code\":false},\"memory_warning\":null,\"carveout_advice\":null}",
+      "loaded": [
+        "ollama-manifest:%2Froot%2F.ollama%2Fmodels%2Fmanifests%2Fregistry.ollama.ai%2Flibrary%2Fsmollm%2F135m"
+      ],
+      "active_model": "ollama-manifest:%2Froot%2F.ollama%2Fmodels%2Fmanifests%2Fregistry.ollama.ai%2Flibrary%2Fsmollm%2F135m",
+      "reply": "Here is a five-word greeting:\n\n* Hello\n* Hi\n* How are you\n* I'm",
+      "completion_tokens": 24,
+      "seconds": 1.0
+    },
+    "hermes": {
+      "load_id": "/root/.hermes/models/SmolLM2-135M-Instruct-Q2_K.gguf",
+      "load_response_tail": "models/SmolLM2-135M-Instruct-Q2_K.gguf\",\"display_name\":\"SmolLM2-135M-Instruct-Q2_K\",\"is_lora\":false,\"is_gguf\":true,\"is_local_model\":true,\"inference\":{\"temperature\":0.7,\"top_p\":0.95,\"top_k\":-1,\"min_p\":0.01,\"presence_penalty\":0.0,\"trust_remote_code\":false},\"memory_warning\":null,\"carveout_advice\":null}",
+      "loaded": [
+        "SmolLM2-135M-Instruct-Q2_K"
+      ],
+      "active_model": "SmolLM2-135M-Instruct-Q2_K",
+      "reply": "Hello, I'm a regular visitor.",
+      "completion_tokens": 9,
+      "seconds": 1.4
+    },
+    "models_dir": {
+      "load_id": "/workspace/models/SmolLM2-135M-Instruct-Q3_K_M.gguf",
+      "load_response_tail": "ls/SmolLM2-135M-Instruct-Q3_K_M.gguf\",\"display_name\":\"SmolLM2-135M-Instruct-Q3_K_M\",\"is_lora\":false,\"is_gguf\":true,\"is_local_model\":true,\"inference\":{\"temperature\":0.7,\"top_p\":0.95,\"top_k\":-1,\"min_p\":0.01,\"presence_penalty\":0.0,\"trust_remote_code\":false},\"memory_warning\":null,\"carveout_advice\":null}",
+      "loaded": [
+        "SmolLM2-135M-Instruct-Q3_K_M"
+      ],
+      "active_model": "SmolLM2-135M-Instruct-Q3_K_M",
+      "reply": "Hello, welcome to the world of numbers!",
+      "completion_tokens": 10,
+      "seconds": 1.3
+    }
+  },
+  "ui_error": "TimeoutError('Locator.click: Timeout 30000ms exceeded.\\nCall log:\\n  - waiting for locator(\"[data-tour=\\\\\"chat-model-selector-popover\\\\\"]\").get_by_text(\"Q4_K_M\").first\\n')",
+  "failures": []
+}

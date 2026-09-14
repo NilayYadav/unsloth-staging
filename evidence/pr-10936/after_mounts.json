@@ -1,0 +1,68 @@
+[
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.ollama/models",
+        "Destination": "/root/.ollama/models",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.hermes/models",
+        "Destination": "/root/.hermes/models",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/gguf-models",
+        "Destination": "/workspace/models",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.cache/huggingface",
+        "Destination": "/workspace/.cache/huggingface",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.cache/unsloth-triton",
+        "Destination": "/workspace/.cache/triton",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/work/_temp",
+        "Destination": "/workspace/host",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "volume",
+        "Name": "unsloth-studio",
+        "Source": "/var/lib/docker/volumes/unsloth-studio/_data",
+        "Destination": "/opt/unsloth-studio",
+        "Driver": "local",
+        "Mode": "z",
+        "RW": true,
+        "Propagation": ""
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.lmstudio/models",
+        "Destination": "/root/.lmstudio/models",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+    }
+]

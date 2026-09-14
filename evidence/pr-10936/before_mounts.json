@@ -1,0 +1,36 @@
+[
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.cache/huggingface",
+        "Destination": "/workspace/.cache/huggingface",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/.cache/unsloth-triton",
+        "Destination": "/workspace/.cache/triton",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "bind",
+        "Source": "/home/runner/work/_temp",
+        "Destination": "/workspace/host",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+    },
+    {
+        "Type": "volume",
+        "Name": "unsloth-studio",
+        "Source": "/var/lib/docker/volumes/unsloth-studio/_data",
+        "Destination": "/opt/unsloth-studio",
+        "Driver": "local",
+        "Mode": "z",
+        "RW": true,
+        "Propagation": ""
+    }
+]

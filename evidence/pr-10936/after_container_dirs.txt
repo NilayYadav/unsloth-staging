@@ -1,0 +1,4 @@
+/root/.lmstudio/models: 1 files
+/root/.ollama/models: 6 files
+/root/.hermes/models: 1 files
+/workspace/models: 1 files
