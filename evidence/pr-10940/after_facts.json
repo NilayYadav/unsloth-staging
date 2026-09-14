@@ -1,0 +1,19 @@
+{
+  "label": "AFTER",
+  "ref": "e626d3cf6bef317ed6cb87c98b9c8a8f90a13203",
+  "tools_offered": [],
+  "provider_completions": 3,
+  "tool_cards": 2,
+  "model_got_read_media_file": "[audio attachment (audio/wav) not shown to the model]",
+  "model_got_export_report": "[file attachment (application/pdf) <file:///reports/q3-summary.pdf> not shown to the model]",
+  "model_got_chars": [
+    53,
+    91
+  ],
+  "base64_reached_model": false,
+  "tool_card_texts": [
+    "[audio attachment (audio/wav) not shown to the model]",
+    "[file attachment (application/pdf) <file:///reports/q3-summary.pdf> not shown to the model]"
+  ],
+  "answer": "read_media_file gave me \"[audio attachment (audio/wav) not shown to the model]\". export_report gave me \"[file attachment (application/pdf) <file:///reports/q3-summary.pdf> not shown to the model]\"."
+}
