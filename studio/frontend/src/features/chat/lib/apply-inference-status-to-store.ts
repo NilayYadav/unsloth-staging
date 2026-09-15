@@ -34,7 +34,6 @@ import {
   isMultimodalResponse,
 } from "../types/api";
 import type { ChatModelRow } from "../types/runtime";
-import { showLoadWarning } from "../utils/load-warning-toast";
 import { resolveQwenThinkingParams } from "../utils/qwen-sampling-table";
 import { sameGpuSelection } from "@/hooks/gpu-selection";
 import { resolveBatchSizeSeed } from "./resolve-batch-size-seed";
@@ -187,9 +186,6 @@ export function applyActiveModelStatusToStore(
   const hydratingExistingModel =
     previousCheckpoint !== checkpointId ||
     previousGgufVariant !== (status.gguf_variant ?? null);
-  if (hydratingExistingModel) {
-    showLoadWarning(status.memory_warning);
-  }
   const supportsReasoning = status.supports_reasoning ?? false;
   const reasoningAlwaysOn = status.reasoning_always_on ?? false;
   const reasoningStyle = status.reasoning_style ?? "enable_thinking";
