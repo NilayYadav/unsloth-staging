@@ -186,7 +186,6 @@ const PastedTextAttachmentUI: FC<{
   // Read off the header, never measured: the paste can be megabytes and this
   // runs while the thread is trying to paint.
   const bytes = attachment.file?.size ?? attachment.sentBytes;
-  const canInline = isComposer && attachment.file !== undefined;
 
   // Clicking the chip pours the text back into the composer.
   const showInTextField = useCallback(() => {
@@ -225,11 +224,11 @@ const PastedTextAttachmentUI: FC<{
       )}
       type="button"
       aria-label={
-        canInline
+        isComposer
           ? `Pasted text: ${name}. Show in text field`
           : `Pasted text: ${name}. Show contents`
       }
-      onClick={canInline ? showInTextField : undefined}
+      onClick={isComposer ? showInTextField : undefined}
     >
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/10">
         <HugeiconsIcon
@@ -242,10 +241,10 @@ const PastedTextAttachmentUI: FC<{
         <span className="truncate font-medium text-xs">{name}</span>
         <span className="truncate text-ui-11 text-muted-foreground">
           {/* Hover swaps the size for the action. */}
-          <span className={canInline ? "group-hover:hidden" : undefined}>
+          <span className={isComposer ? "group-hover:hidden" : undefined}>
             {bytes === undefined ? "Pasted text" : formatBytes(bytes)}
           </span>
-          {canInline ? (
+          {isComposer ? (
             <span className="hidden items-center gap-0.5 underline underline-offset-2 group-hover:inline-flex">
               Show in text field
               <ChevronRightIcon className="size-3" />
@@ -258,7 +257,7 @@ const PastedTextAttachmentUI: FC<{
 
   return (
     <AttachmentPrimitive.Root className="aui-attachment-root relative">
-      {canInline ? (
+      {isComposer ? (
         chip
       ) : (
         <PastedTextPreviewDialog attachment={attachment} name={name}>
@@ -370,16 +369,11 @@ export const UserMessageAttachments: FC = () => {
   );
 };
 
-export const ComposerAttachments: FC<{ className?: string }> = ({
-  className,
-}) => {
+export const ComposerAttachments: FC = () => {
   return (
     <div
       data-reload-snapshot-sensitive
-      className={cn(
-        "aui-composer-attachments mb-2 flex w-full flex-row items-center gap-2 overflow-x-auto px-1.5 pt-0.5 pb-1 empty:hidden",
-        className,
-      )}
+      className="aui-composer-attachments mb-2 flex w-full flex-row items-center gap-2 overflow-x-auto px-1.5 pt-0.5 pb-1 empty:hidden"
     >
       <ComposerPrimitive.Attachments
         components={{ Attachment: AttachmentUI }}
