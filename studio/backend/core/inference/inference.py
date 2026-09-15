@@ -1324,7 +1324,6 @@ class InferenceBackend:
                     max_new_tokens,
                     repetition_penalty,
                     cancel_event = cancel_event,
-                    _adapter_state = _adapter_state,
                     presence_penalty = presence_penalty,
                     continue_final_message = continue_final_message,
                     tools = tools,
@@ -1476,7 +1475,6 @@ class InferenceBackend:
         max_new_tokens,
         repetition_penalty,
         cancel_event = None,
-        _adapter_state = None,
         presence_penalty: float = 0.0,
         continue_final_message: bool = False,
         tools: Optional[list] = None,
@@ -1714,7 +1712,6 @@ class InferenceBackend:
             def generate_fn():
                 with self._generation_lock:
                     try:
-                        self._apply_adapter_state(_adapter_state)
                         # Started inside the lock so a queued request's wait is not billed as prefill.
                         timer.start()
                         # See generate_stream: only the returned sequences carry
