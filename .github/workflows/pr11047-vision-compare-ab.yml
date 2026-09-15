@@ -1,0 +1,105 @@
+name: "PR 11047 vision compare adapter A/B"
+
+on:
+  push:
+    branches: ['pr11047-ab-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr11047-ab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ab:
+    name: "Compare panes on an image turn (studio backend, CPU)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+      SIDE_LABEL: ${{ contains(github.ref_name, 'reverted') && 'BEFORE (fix reverted)' || 'AFTER (PR head)' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install backend test dependencies (same set as Backend CI)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install \
+            python-multipart aiofiles sqlalchemy cryptography psutil \
+            pyyaml jinja2 mammoth unpdf requests \
+            'numpy<3' pytest pytest-asyncio pytest-xdist pytest-timeout httpx
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple \
+            'torch>=2.4,<2.11' 'torchaudio<2.11'
+          pip install 'transformers>=4.51,<5.5'
+          pip install "$(grep -m1 -E '^peft==' studio/backend/requirements/extras-no-deps.txt)"
+
+      - name: Record the tree under test
+        run: |
+          echo "side: $SIDE_LABEL"
+          git log --oneline -3
+          sha256sum studio/backend/core/inference/inference.py studio/backend/tests/test_vision_client_tools.py
+          echo "_adapter_state forwarded into generation: $(grep -c '_adapter_state = _adapter_state' studio/backend/core/inference/inference.py) call sites"
+          echo "generate_fn bodies applying adapter state: $(grep -c 'self._apply_adapter_state(_adapter_state)$' studio/backend/core/inference/inference.py)"
+
+      - name: Probe adapter state each compare pane applies on an image turn
+        working-directory: studio/backend
+        run: |
+          cat > tests/test_pr11047_probe.py <<'EOF'
+          import json
+          import threading
+
+          try:
+              from tests.test_vision_client_tools import _vision_probe
+          except ImportError:
+              from test_vision_client_tools import _vision_probe
+
+
+          def test_print_adapter_state_per_pane():
+              backend, _ = _vision_probe()
+              info = backend.models["vision-tools"]
+              info["is_vision"] = True
+              lock = backend._generation_lock
+              events = []
+              backend._apply_adapter_state = lambda state: events.append(
+                  ["apply_adapter_state", state, lock.locked()]
+              )
+              info["model"].generate = lambda **_kw: events.append(
+                  ["model.generate", None, lock.locked()]
+              )
+
+              def pane(use_adapter):
+                  list(
+                      backend.generate_with_adapter_control(
+                          use_adapter = use_adapter,
+                          messages = [{"role": "user", "content": "what is in this picture"}],
+                          image = object(),
+                          max_new_tokens = 1,
+                      )
+                  )
+
+              threads = [threading.Thread(target = pane, args = (s,)) for s in (False, True)]
+              for t in threads:
+                  t.start()
+              for t in threads:
+                  t.join()
+              applied = [e[1] for e in events if e[0] == "apply_adapter_state"]
+              print("PROBE events [call, use_adapter, lock_held]:", json.dumps(events))
+              print("PROBE use_adapter applied before generate:", json.dumps(sorted(applied)))
+              print("PROBE model.generate calls:", sum(e[0] == "model.generate" for e in events))
+          EOF
+          python -m pytest -q -s -p no:cacheprovider tests/test_pr11047_probe.py
+
+      - name: test_vision_client_tools.py
+        working-directory: studio/backend
+        run: |
+          set -o pipefail
+          python -m pytest -v -p no:cacheprovider --timeout 300 -rfE tests/test_vision_client_tools.py 2>&1 | tee "$RUNNER_TEMP/pytest.log"
