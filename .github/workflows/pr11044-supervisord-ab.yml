@@ -1,0 +1,36 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11044 supervisord stop A/B"
+
+on:
+  push:
+    branches:
+      - "pr11044-supervisord-ab-20260915"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: "Install supervisor"
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq supervisor
+          sudo systemctl stop supervisor || true
+          supervisord --version
+
+      - name: "supervisord stop A/B (merge base vs PR head)"
+        shell: bash
+        run: |
+          python3 .github/pr11044/supervisord_ab.py
+
