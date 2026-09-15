@@ -1,0 +1,44 @@
+{
+  "side": "pr11052-ab-pos",
+  "sha": "9e6c2b0c992acc2aebb1f1d95a6ff0ad50e54844",
+  "repo": "unsloth/Qwen3-4B-GGUF",
+  "requested": "BF16",
+  "phase1_free_gib_set": 7.45,
+  "phase1_low_disk": {
+    "free_gib_before": 7.45,
+    "http": 200,
+    "load_status": "loaded",
+    "memory_warning": "Not enough disk space to download BF16 (7.5 GB needed, 7.4 GB free), so Q4_1 (2.4 GB) was loaded instead.",
+    "error": null,
+    "status_gguf_variant": "Q4_1",
+    "status_model": "unsloth/Qwen3-4B-GGUF",
+    "cached_ggufs": {
+      "Qwen3-4B-Q4_1.gguf": 2596629792
+    },
+    "seconds": 16.5
+  },
+  "phase1_header_variant": "Q4_1",
+  "phase1_toast": "Model loaded with a warning\nNot enough disk space to download BF16 (7.5 GB needed, 7.4 GB free), so Q4_1 (2.4 GB) was loaded instead.",
+  "phase2_space_freed": {
+    "free_gib_before": 13.147,
+    "http": 200,
+    "load_status": "loaded",
+    "memory_warning": null,
+    "error": null,
+    "status_gguf_variant": "BF16",
+    "status_model": "unsloth/Qwen3-4B-GGUF",
+    "cached_ggufs": {
+      "Qwen3-4B-BF16.gguf": 8051285536,
+      "Qwen3-4B-Q4_1.gguf": 2596629792
+    },
+    "seconds": 43.1
+  },
+  "phase2_header_variant": "BF16",
+  "phase2_toast": null,
+  "checks": {
+    "A1 low disk serves the largest quant leaving the reserve (Q4_1)": true,
+    "A2 status reports the served quant, not the requested one": true,
+    "A3 load response names both quants": true,
+    "A4 after freeing space BF16 is downloaded and loaded": true
+  }
+}
