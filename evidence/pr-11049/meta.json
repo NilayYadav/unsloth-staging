@@ -1,0 +1,116 @@
+{
+  "pr": 11049,
+  "base": "128659085bc9f02ffafa5e50bf8662ca6a2346cc",
+  "head": "0b1a63fd5eae4d9029d2f43f6002aa238782bac6",
+  "gpu": "L4",
+  "llama_server": "/root/.unsloth/llama.cpp/build/bin/llama-server",
+  "sides": {
+    "before": {
+      "ref": "128659085bc9f02ffafa5e50bf8662ca6a2346cc",
+      "checked_out": "128659085bc9f02ffafa5e50bf8662ca6a2346cc",
+      "file_sha256": {
+        "studio/backend/routes/data_recipe/jobs.py": "10f81e580b47088f9048b59de7fbe1f9f8a19f0caef04498818cee74e1d7c5dc"
+      },
+      "served_by_llama_cpp_gate_in_tree": false,
+      "port": 9101,
+      "pid": 65,
+      "facts": {
+        "model": "unsloth/Qwen3-0.6B",
+        "active_model": "unsloth/Qwen3-0.6B",
+        "is_gguf": false,
+        "api": {
+          "http_status": 200,
+          "job_status": "error",
+          "error_head": "\ud83d\uded1 Dataset is empty \u2014 all records were dropped due to generation or processing failures. Check the warnings above for details on which columns failed.",
+          "dataset_is_empty_error": true,
+          "dataset_rows": 0
+        },
+        "ui": {
+          "ui_toast": "Preview failed",
+          "ui_run_seconds": 7.5,
+          "ui_execution_failed_on_screen": true,
+          "ui_dataset_is_empty_on_screen": true,
+          "ui_no_rows_on_screen": true,
+          "ui_table_rows": 0,
+          "ui_rating_header_on_screen": false
+        }
+      },
+      "exit_code_before_stop": null
+    },
+    "after": {
+      "ref": "0b1a63fd5eae4d9029d2f43f6002aa238782bac6",
+      "checked_out": "0b1a63fd5eae4d9029d2f43f6002aa238782bac6",
+      "file_sha256": {
+        "studio/backend/routes/data_recipe/jobs.py": "52a8165dce0a757f3fadd02c64399b84deafd74b94b50b5092cb26b9dfa75a3a"
+      },
+      "served_by_llama_cpp_gate_in_tree": true,
+      "port": 9102,
+      "pid": 551,
+      "facts": {
+        "model": "unsloth/Qwen3-0.6B",
+        "active_model": "unsloth/Qwen3-0.6B",
+        "is_gguf": false,
+        "api": {
+          "http_status": 200,
+          "job_status": "completed",
+          "error_head": "",
+          "dataset_is_empty_error": false,
+          "dataset_rows": 3,
+          "ratings": [
+            {
+              "name": "Cozy Coffee Haven",
+              "score": 8
+            },
+            {
+              "name": "Creative Coffee Haven",
+              "score": 9
+            },
+            {
+              "name": "CozyCaf\u00e9",
+              "score": 8
+            }
+          ],
+          "blurbs_non_empty": 3,
+          "ratings_valid": 3
+        },
+        "ui": {
+          "ui_toast": "Preview generated (3 rows).",
+          "ui_run_seconds": 9.5,
+          "ui_execution_failed_on_screen": false,
+          "ui_dataset_is_empty_on_screen": false,
+          "ui_no_rows_on_screen": false,
+          "ui_table_rows": 3,
+          "ui_rating_header_on_screen": true
+        },
+        "gguf_control": {
+          "model": "unsloth/Qwen3-0.6B-GGUF",
+          "variant": "Q4_K_M",
+          "active_model": "unsloth/Qwen3-0.6B-GGUF",
+          "is_gguf": true,
+          "http_status": 200,
+          "job_status": "completed",
+          "error_head": "",
+          "dataset_is_empty_error": false,
+          "dataset_rows": 3,
+          "ratings": [
+            {
+              "name": "Cozy Caf\u00e9 Haven",
+              "score": 8
+            },
+            {
+              "name": "Cozy Coffee Haven",
+              "score": 10
+            },
+            {
+              "name": "Cozy Caf\u00e9 in the Heart of the City",
+              "score": 7
+            }
+          ],
+          "blurbs_non_empty": 3,
+          "ratings_valid": 3
+        }
+      },
+      "exit_code_before_stop": null
+    }
+  }
+}
