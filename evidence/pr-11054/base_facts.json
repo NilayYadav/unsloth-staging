@@ -1,0 +1,44 @@
+{
+  "side": "base",
+  "ref": "pr11054-uiev-base",
+  "sha": "a4a4a00903a0cf953395ca390f560fc4b87af39f",
+  "must_change_password": true,
+  "transcript_attachments": 2,
+  "edit_open": {
+    "attachments": 0,
+    "remove_buttons": 0,
+    "pasted_chips": 0,
+    "image_tiles": 0,
+    "text": "Compare these quarterly notes with the chart."
+  },
+  "after_cancel_transcript_attachments": 2,
+  "noop_update_edit_closed": true,
+  "noop_update_user_rows": 1,
+  "noop_update_chat_runs": 0,
+  "after_remove": {
+    "attachments": 0,
+    "remove_buttons": 0,
+    "pasted_chips": 0,
+    "image_tiles": 0,
+    "text": "Compare these quarterly notes with the chart."
+  },
+  "update_new_user_row": false,
+  "chat_runs_requests": 0,
+  "chat_runs_have_paste_marker": false,
+  "chat_runs_have_image": false,
+  "after_update_transcript_attachments": 2,
+  "paste_only_edit": {
+    "attachments": 0,
+    "remove_buttons": 0,
+    "pasted_chips": 0,
+    "image_tiles": 0,
+    "text": ""
+  },
+  "console_errors": [],
+  "failures": [
+    "edit box shows the 2 attachments it will resend (got 0)",
+    "edit box offers a remove button per attachment (got 0)",
+    "Update after removing the paste sends the message without it and keeps the image (row=False, names=None, marker=None)",
+    "paste-only message opens with its paste chip, not an empty box (chips=0)"
+  ]
+}
