@@ -1,0 +1,63 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11049 structured recipe repro"
+
+on:
+  push:
+    branches:
+      - "pr11049-ab-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.13"
+
+      - name: "Implementation under test"
+        shell: bash
+        run: |
+          sha256sum studio/backend/routes/data_recipe/jobs.py
+          if grep -q 'if served_by_llama_cpp:' studio/backend/routes/data_recipe/jobs.py; then echo 'IMPLEMENTATION=pr-fix'; else echo 'IMPLEMENTATION=main-reverted'; fi
+          git diff --stat 56d19467ebce9e59ec18e298bdf16a5a63da2445 HEAD -- studio/backend
+
+      - name: "Install backend test dependencies (CPU only, same as Backend CI)"
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 mammoth unpdf requests 'numpy<3' pytest pytest-asyncio pytest-xdist pytest-timeout httpx soundfile librosa
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch>=2.4,<2.11' 'torchaudio<2.11'
+          pip install 'transformers>=4.51,<5.5'
+          pip install "$(grep -m1 -E '^peft==' studio/backend/requirements/extras-no-deps.txt)"
+          pip install torchao
+
+      - name: "Dependent recipe tests (must pass on both sides)"
+        shell: bash
+        run: |
+          cd studio/backend
+          python -m pytest tests/test_job_accounts.py tests/test_desktop_auth.py -q --tb=short --timeout=330 -p no:cacheprovider -k 'recipe'
+
+      - name: "PR 11049 regression: structured column on a non-GGUF model"
+        shell: bash
+        run: |
+          cd studio/backend
+          set +e
+          python -m pytest tests/test_data_recipe_structured_response_format.py -vv --tb=short --timeout=330 -p no:cacheprovider 2>&1 | tee ../../repro.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "PYTEST_EXIT=$rc"
+          if grep -q 'test_non_gguf_model_keeps_prompt_level_json PASSED' ../../repro.log && grep -q 'test_gguf_model_gets_grammar_response_format PASSED' ../../repro.log; then echo 'REPRO RESULT: PASS - non-GGUF keeps prompt-level JSON, GGUF keeps grammar response_format'; else echo 'REPRO RESULT: FAIL - non-GGUF structured column was given a llama.cpp-only response_format'; fi
+          exit $rc
+
