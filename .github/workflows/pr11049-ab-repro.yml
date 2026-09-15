@@ -30,7 +30,7 @@ jobs:
         run: |
           sha256sum studio/backend/routes/data_recipe/jobs.py
           if grep -q 'if served_by_llama_cpp:' studio/backend/routes/data_recipe/jobs.py; then echo 'IMPLEMENTATION=pr-fix'; else echo 'IMPLEMENTATION=main-reverted'; fi
-          git diff --stat 56d19467ebce9e59ec18e298bdf16a5a63da2445 HEAD -- studio/backend
+          echo "COMMIT=$(git rev-parse HEAD)"
 
       - name: "Install backend test dependencies (CPU only, same as Backend CI)"
         shell: bash
