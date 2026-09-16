@@ -51,7 +51,8 @@ hf_cache = modal.Volume.from_name("unsloth-studio-hf-cache", create_if_missing =
 
 @app.function(image = image, gpu = GPU, timeout = 4 * 60 * 60, max_containers = 2,
               volumes = {"/root/.cache/huggingface": hf_cache})
-def evaluate(model_keys: list, task_ids: list, before_ref: str, after_ref: str, max_seq_length: int):
+def evaluate(model_keys: list, task_ids: list, before_ref: str, after_ref: str, max_seq_length: int,
+             sides: list = ("before", "after")):
     import secrets
     import signal
     import socket
@@ -119,6 +120,8 @@ def evaluate(model_keys: list, task_ids: list, before_ref: str, after_ref: str, 
     print(f"llama-server: {llama_bin}", flush = True)
 
     for side, ref, port in (("before", before_ref, 9201), ("after", after_ref, 9202)):
+        if side not in sides:
+            continue
         git("checkout", "-q", "--detach", ref)
         subprocess.run(["git", "-C", str(root), "diff", "--quiet", ref], check = True)
         subprocess.run(f"find {root}/studio/backend -name __pycache__ -type d -prune -exec rm -rf {{}} +", shell = True)
@@ -277,13 +280,14 @@ def evaluate(model_keys: list, task_ids: list, before_ref: str, after_ref: str, 
 
 @app.local_entrypoint()
 def main(models: str = "4b", tasks: str = "search_created_range,query_rows_checkbox",
-         before_ref: str = BEFORE_REF, after_ref: str = AFTER_REF, max_seq_length: int = 100000):
+         before_ref: str = BEFORE_REF, after_ref: str = AFTER_REF, max_seq_length: int = 100000,
+         tag: str = "latest", sides: str = "before,after"):
     task_ids = [] if tasks == "all" else [t for t in tasks.split(",") if t]
     t0 = time.time()
     keys = models.split(",")
-    calls = [evaluate.spawn([key], task_ids, before_ref, after_ref, max_seq_length) for key in keys]
-    out = HERE / "out"
-    out.mkdir(exist_ok = True)
+    calls = [evaluate.spawn([key], task_ids, before_ref, after_ref, max_seq_length, sides.split(",")) for key in keys]
+    out = HERE / "out" / tag
+    out.mkdir(parents = True, exist_ok = True)
     for key, call in zip(keys, calls):
         result = call.get()
         for run in result["runs"]:
