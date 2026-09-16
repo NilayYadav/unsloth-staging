@@ -10,13 +10,17 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 _BACKEND_DIR = str(Path(__file__).resolve().parent.parent)
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
 from core.inference.tool_call_parser import (
+    StreamingMarkupStripper,
     _gemma_parse_value,
     parse_tool_calls_from_text,
+    promotable_gemma_call_pos,
 )
 from core.tool_healing import strip_tool_call_markup
 
@@ -462,3 +466,101 @@ def test_streaming_display_of_prose_call_never_shrinks():
         assert len(out) >= len(seen), (i, out, seen)
         seen = out
     assert seen == prose
+
+
+_FENCED_EXAMPLES = [
+    '```\ncall:web_search{query: "cats"}\n```',
+    "```text\ncall:web_search{query:cats}\n```",
+    "Here is the syntax:\n~~~\ncall:web_search{query:cats}\n~~~",
+    "Use `call:web_search{query:cats}` to search.",
+]
+
+
+@pytest.mark.parametrize("text", _FENCED_EXAMPLES)
+def test_wrapperless_call_quoted_in_markdown_code_is_documentation(text):
+    en = {"web_search"}
+    assert parse_tool_calls_from_text(text, enabled_tool_names = en) == []
+    assert promotable_gemma_call_pos(text, en) == -1
+    assert _strip(text, en) == text
+
+
+def test_streamed_fenced_example_never_turns_into_a_call():
+    text = 'Example:\n```\ncall:web_search{query: "cats"}\n```\nDone.'
+    en = {"web_search"}
+    stripper = StreamingMarkupStripper(en)
+    seen = ""
+    for i in range(1, len(text) + 1):
+        out = stripper.strip(text[:i])
+        assert out.startswith(seen), (i, out, seen)
+        assert parse_tool_calls_from_text(text[:i], enabled_tool_names = en) == [], i
+        assert promotable_gemma_call_pos(text[:i], en) == -1, i
+        seen = out
+    assert seen == text
+
+
+def test_unfenced_wrapperless_call_is_still_promoted_beside_a_fence():
+    text = "```\ncall:web_search{query:dogs}\n```\ncall:web_search{query:cats}"
+    en = {"web_search"}
+    calls = parse_tool_calls_from_text(text, enabled_tool_names = en)
+    assert [_args(c) for c in calls] == [{"query": "cats"}]
+    assert _strip(text, en) == "```\ncall:web_search{query:dogs}\n```"
+
+
+def test_native_token_gemma_call_inside_a_fence_is_still_a_call():
+    text = '```\n<|tool_call>call:web_search{query:<|"|>cats<|"|>}<tool_call|>\n```'
+    en = {"web_search"}
+    calls = parse_tool_calls_from_text(text, enabled_tool_names = en)
+    assert len(calls) == 1, calls
+    assert _args(calls[0]) == {"query": "cats"}
+    assert "call:web_search" not in _strip(text, en)
+
+
+def test_wrapperless_call_after_a_longer_fence_quoting_a_fence_is_still_promoted():
+    text = '````md\n```py\nx=1\n```\n````\ncall:web_search{query:"b"}'
+    en = {"web_search"}
+    calls = parse_tool_calls_from_text(text, enabled_tool_names = en)
+    assert [_args(c) for c in calls] == [{"query": "b"}]
+    assert promotable_gemma_call_pos(text, en) == text.index("call:web_search")
+    assert _strip(text, en) == "````md\n```py\nx=1\n```\n````"
+
+
+def test_inline_code_example_keeps_streaming_on_the_safetensors_loop():
+    from core.inference.safetensors_agentic import run_safetensors_tool_loop
+
+    en = {"web_search"}
+    for quoted in ('`call:web_search{query:"x"}`', '``call:web_search{query:"x"}``'):
+        prose = f"In Gemma syntax: {quoted}. " + "More explanation follows. " * 40
+        for i in range(1, len(prose) + 1):
+            assert promotable_gemma_call_pos(prose[:i], en, streaming = True) == -1, (quoted, i)
+
+    text = 'In Gemma syntax: ``call:web_search{query:"x"}``. ' + "More explanation follows. " * 40
+
+    calls = []
+
+    def _gen(_messages):
+        acc = ""
+        for i in range(0, len(text), 4):
+            acc += text[i : i + 4]
+            yield acc
+
+    events = list(
+        run_safetensors_tool_loop(
+            single_turn = _gen,
+            messages = [{"role": "user", "content": "hi"}],
+            tools = [{"type": "function", "function": {"name": "web_search"}}],
+            execute_tool = lambda name, arguments, **_: calls.append(name) or "RESULT",
+        )
+    )
+    contents = [e["text"] for e in events if e["type"] == "content"]
+    assert calls == []
+    assert contents[-1] == text
+    assert len(contents[-2]) > text.index("``.") + 2
+
+
+def test_unclosed_inline_backtick_does_not_hide_a_call_once_its_line_ends():
+    text = 'Use `call:web_search{query:"x"}\n'
+    en = {"web_search"}
+    assert promotable_gemma_call_pos(text[:-1], en, streaming = True) == -1
+    assert promotable_gemma_call_pos(text, en, streaming = True) == text.index("call:")
+    closed = 'See `code` then call:web_search{query:"x"}'
+    assert promotable_gemma_call_pos(closed, en, streaming = True) == closed.index("call:")
