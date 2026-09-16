@@ -289,17 +289,14 @@ def scene_dialog(page) -> bool:
 def scene_download(page, disk_bodies) -> bool:
     url = os.environ["STUDIO_BASE"] + "/hub?" + urllib.parse.urlencode({"model": REPO_ID, "file": FILENAME})
     page.goto(url, wait_until="domcontentloaded")
-    trigger = page.locator("button.hub-menu-trigger").filter(has_text="GGUF").first
+    trigger = (
+        page.locator("button.hub-menu-trigger")
+        .filter(has_text=re.compile(rf"\b{QUANT}\b"))
+        .filter(has_text="GGUF")
+        .first
+    )
     trigger.wait_for(state="visible", timeout=120_000)
-    deadline = time.time() + 60
-    while time.time() < deadline and QUANT not in trigger.inner_text():
-        time.sleep(1)
-    if QUANT not in trigger.inner_text():
-        trigger.click()
-        row = page.locator("div[role=button]").filter(has_text=re.compile(rf"^\s*{QUANT}\b")).first
-        row.wait_for(state="visible", timeout=20_000)
-        row.click()
-        time.sleep(1)
+    time.sleep(2)
     trigger_text = " ".join(trigger.inner_text().split())
     size_m = re.search(r"([\d.]+ [KMGT]?B)\s*$", trigger_text)
     card_size = size_m.group(1) if size_m else None
