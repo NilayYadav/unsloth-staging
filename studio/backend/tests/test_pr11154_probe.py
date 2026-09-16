@@ -3,8 +3,8 @@ import json
 
 from core.inference.llama_cpp import _MAX_TOOL_CALLS_PER_TURN
 from core.inference.safetensors_agentic import run_safetensors_tool_loop
-from tests.test_llama_cpp_tool_loop import _backend_and_payloads, _done, _record_tool_calls, _sse
-from tests.test_safetensors_tool_loop import FakeExecuteTool, _collect_events
+from test_llama_cpp_tool_loop import _backend_and_payloads, _done, _record_tool_calls, _sse
+from test_safetensors_tool_loop import FakeExecuteTool, _collect_events
 
 N = 10
 
