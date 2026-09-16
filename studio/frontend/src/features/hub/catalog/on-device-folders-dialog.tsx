@@ -19,7 +19,6 @@ import {
 import {
   type ScanFolderInfo,
   addScanFolder,
-  formatBytes,
   listScanFolders,
   removeScanFolder,
   scanFolderStatusCopy,
@@ -62,7 +61,8 @@ function formatError(error: unknown): string {
 
 function formatFreeSpace(bytes: number | null): string | null {
   if (bytes === null || !Number.isFinite(bytes)) return null;
-  return `${formatBytes(bytes)} free`;
+  const gb = bytes / 1024 ** 3;
+  return gb >= 10 ? `${Math.round(gb)} GB free` : `${gb.toFixed(1)} GB free`;
 }
 
 export function OnDeviceFoldersDialog({
