@@ -361,11 +361,37 @@ def tool_turns(block: dict) -> list:
 
 
 CASES = [
-    ("tool_result_search_result", {"tools": [TOOL], "messages": tool_turns(SEARCH_RESULT)}),
-    ("tool_result_document", {"tools": [TOOL], "messages": tool_turns(DOCUMENT)}),
     ("user_search_result", {"messages": [{"role": "user", "content": [SEARCH_RESULT, {"type": "text", "text": QUESTION}]}]}),
     ("user_document", {"messages": [{"role": "user", "content": [DOCUMENT, {"type": "text", "text": QUESTION}]}]}),
+    ("tool_result_document", {"tools": [TOOL], "messages": tool_turns(DOCUMENT)}),
+    ("tool_result_search_result", {"tools": [TOOL], "messages": tool_turns(SEARCH_RESULT)}),
 ]
+
+
+async def capture_api_monitor(base_url: str, password: str | None, artifact_dir: Path) -> None:
+    if not password:
+        warn("no bootstrap password; skipping API monitor capture")
+        return
+    init = await auth_init(base_url, password)
+    async with open_chat(base_url, init_scripts=[init], viewport=(1366, 900)) as sp:
+        page = sp.page
+        await page.goto(f"{base_url}/api-monitor", wait_until="domcontentloaded")
+        rows = page.locator("button:has(p[data-reload-snapshot-sensitive])")
+        await rows.first.wait_for(state="visible", timeout=60_000)
+        await rows.first.click()
+        await page.wait_for_timeout(2500)
+        main_text = await page.locator("main").first.inner_text()
+        facts = {
+            "rows": await rows.count(),
+            "prompt_has_search_result_title": "Vault access" in main_text,
+            "prompt_has_search_result_source": "kb://vault" in main_text,
+            "prompt_has_code": CODE in main_text,
+        }
+        (artifact_dir / "api-monitor-facts.json").write_text(json.dumps(facts, indent=2), encoding="utf-8")
+        (artifact_dir / "api-monitor-text.txt").write_text(main_text, encoding="utf-8")
+        print(f"UIFACTS {json.dumps(facts)}", flush=True)
+        await page.screenshot(path=str(artifact_dir / "api-monitor.png"), full_page=False)
+    pass_log("captured API monitor screenshot")
 
 
 async def scenario_local_chat(base_url: str, api_key: str, browser_name: str, artifact_dir: Path, password: str | None) -> None:
@@ -390,6 +416,10 @@ async def scenario_local_chat(base_url: str, api_key: str, browser_name: str, ar
             elif not found:
                 failures.append(f"{name}: model answer does not contain the code")
     (artifact_dir / "anthropic-reference-blocks.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    try:
+        await capture_api_monitor(base_url, password, artifact_dir)
+    except Exception as exc:
+        warn(f"API monitor capture failed: {type(exc).__name__}: {exc}")
     if failures:
         fail("; ".join(failures))
     pass_log("every search_result/document case returned 200 and the model answered with the code")
