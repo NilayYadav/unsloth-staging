@@ -19,7 +19,7 @@ jobs:
     env:
       TINY_CACHE_ROOT: /mnt/pr11150-tiny
       ART_DIR: ${{ github.workspace }}/pr11150-artifacts
-      PRIVATE_LOG_DIR: ${{ runner.temp }}/pr11150-private
+      PRIVATE_LOG_DIR: /tmp/pr11150-private
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
