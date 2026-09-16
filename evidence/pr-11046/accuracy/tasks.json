@@ -1,0 +1,632 @@
+[
+ {
+  "id": "search_created_range",
+  "expected_tool": "notion-search",
+  "prompt": "Use the Notion keyword search (not AI search) to find pages about \"quarterly roadmap\" that were created between 2026-01-01 and 2026-03-31.",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "roadmap"
+   },
+   {
+    "path": "filters.created_date_range.start_date",
+    "op": "equals",
+    "value": "2026-01-01"
+   },
+   {
+    "path": "filters.created_date_range.end_date",
+    "op": "equals",
+    "value": "2026-03-31"
+   }
+  ]
+ },
+ {
+  "id": "search_created_by",
+  "expected_tool": "notion-search",
+  "prompt": "Use the Notion keyword search to find \"onboarding\" pages created by the user with ID 4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07.",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "onboarding"
+   },
+   {
+    "path": "filters.created_by_user_ids",
+    "op": "contains_id",
+    "value": "4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07"
+   }
+  ]
+ },
+ {
+  "id": "search_sort_size",
+  "expected_tool": "notion-search",
+  "prompt": "Run a Notion keyword search for \"incident postmortem\", ordered by last edited, returning only 5 results.",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "postmortem"
+   },
+   {
+    "path": "sort",
+    "op": "equals",
+    "value": "last_edited"
+   },
+   {
+    "path": "page_size",
+    "op": "num_equals",
+    "value": 5
+   }
+  ]
+ },
+ {
+  "id": "search_user",
+  "expected_tool": "notion-search",
+  "prompt": "Use the Notion search tool to look up the workspace user whose email is maria.lopez@example.com.",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "maria"
+   },
+   {
+    "path": "query_type",
+    "op": "equals",
+    "value": "user"
+   }
+  ]
+ },
+ {
+  "id": "fetch_discussions",
+  "expected_tool": "notion-fetch",
+  "prompt": "Fetch the Notion page https://www.notion.so/acme/Launch-plan-195de9221179449fab8075a27c979105 and include its discussion indicators.",
+  "checks": [
+   {
+    "path": "id",
+    "op": "contains_id",
+    "value": "195de922-1179-449f-ab80-75a27c979105"
+   },
+   {
+    "path": "include_discussions",
+    "op": "equals",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "create_page_under_page",
+  "expected_tool": "notion-create-pages",
+  "prompt": "Create a Notion page titled \"Launch checklist\" under the parent page 195de922-1179-449f-ab80-75a27c979105, with the content:\n- Book venue\n- Send invites",
+  "checks": [
+   {
+    "path": "parent.page_id",
+    "op": "contains_id",
+    "value": "195de922-1179-449f-ab80-75a27c979105"
+   },
+   {
+    "path": "pages.0.properties.title",
+    "op": "lower_contains",
+    "value": "launch checklist"
+   },
+   {
+    "path": "pages.0.content",
+    "op": "lower_contains",
+    "value": "book venue"
+   }
+  ]
+ },
+ {
+  "id": "create_row_in_data_source",
+  "expected_tool": "notion-create-pages",
+  "prompt": "Add a row to the Notion data source f336d0bc-b841-465b-8045-024475c079dd with Name \"Fix login bug\", Status \"In progress\" and Priority 2 (a number property).",
+  "checks": [
+   {
+    "path": "parent.data_source_id",
+    "op": "contains_id",
+    "value": "f336d0bc-b841-465b-8045-024475c079dd"
+   },
+   {
+    "path": "pages.0.properties.Name",
+    "op": "equals",
+    "value": "Fix login bug"
+   },
+   {
+    "path": "pages.0.properties.Status",
+    "op": "equals",
+    "value": "In progress"
+   },
+   {
+    "path": "pages.0.properties.Priority",
+    "op": "num_equals",
+    "value": 2
+   }
+  ]
+ },
+ {
+  "id": "update_properties",
+  "expected_tool": "notion-update-page",
+  "prompt": "On the Notion page 7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c, set the Status property to \"Done\" and the Estimate number property to 3.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+   },
+   {
+    "path": "command",
+    "op": "equals",
+    "value": "update_properties"
+   },
+   {
+    "path": "properties.Status",
+    "op": "equals",
+    "value": "Done"
+   },
+   {
+    "path": "properties.Estimate",
+    "op": "num_equals",
+    "value": 3
+   }
+  ]
+ },
+ {
+  "id": "update_content_replace",
+  "expected_tool": "notion-update-page",
+  "prompt": "In the Notion page 7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c, replace the exact text \"Q3 target: 10k users\" with \"Q3 target: 12k users\" without rewriting the rest of the page.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+   },
+   {
+    "path": "command",
+    "op": "equals",
+    "value": "update_content"
+   },
+   {
+    "path": "content_updates.0.old_str",
+    "op": "equals",
+    "value": "Q3 target: 10k users"
+   },
+   {
+    "path": "content_updates.0.new_str",
+    "op": "equals",
+    "value": "Q3 target: 12k users"
+   }
+  ]
+ },
+ {
+  "id": "insert_content_start",
+  "expected_tool": "notion-update-page",
+  "prompt": "Insert the line \"> Draft - do not share\" at the very top (start) of the Notion page a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+   },
+   {
+    "path": "command",
+    "op": "equals",
+    "value": "insert_content"
+   },
+   {
+    "path": "position.type",
+    "op": "equals",
+    "value": "start"
+   },
+   {
+    "path": "content",
+    "op": "lower_contains",
+    "value": "draft"
+   }
+  ]
+ },
+ {
+  "id": "update_verification",
+  "expected_tool": "notion-update-page",
+  "prompt": "Mark the Notion page a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60 as verified, with the verification expiring after 30 days.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+   },
+   {
+    "path": "command",
+    "op": "equals",
+    "value": "update_verification"
+   },
+   {
+    "path": "verification_status",
+    "op": "equals",
+    "value": "verified"
+   },
+   {
+    "path": "verification_expiry_days",
+    "op": "num_equals",
+    "value": 30
+   }
+  ]
+ },
+ {
+  "id": "move_to_workspace",
+  "expected_tool": "notion-move-pages",
+  "prompt": "Move the Notion pages 195de922-1179-449f-ab80-75a27c979105 and 7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c to the top level of the workspace.",
+  "checks": [
+   {
+    "path": "page_or_database_ids",
+    "op": "contains_id",
+    "value": "195de922-1179-449f-ab80-75a27c979105"
+   },
+   {
+    "path": "page_or_database_ids",
+    "op": "contains_id",
+    "value": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+   },
+   {
+    "path": "new_parent.type",
+    "op": "equals",
+    "value": "workspace"
+   }
+  ]
+ },
+ {
+  "id": "move_to_database",
+  "expected_tool": "notion-move-pages",
+  "prompt": "Move the Notion page a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60 into the database 0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21.",
+  "checks": [
+   {
+    "path": "page_or_database_ids",
+    "op": "contains_id",
+    "value": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+   },
+   {
+    "path": "new_parent.database_id",
+    "op": "contains_id",
+    "value": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+   }
+  ]
+ },
+ {
+  "id": "comment_on_selection",
+  "expected_tool": "notion-create-comment",
+  "prompt": "On the Notion page 7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c, add a comment \"Is this number right?\" anchored to the sentence \"Revenue grew 40% year over year across all regions\".",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+   },
+   {
+    "path": "selection_with_ellipsis",
+    "op": "exists"
+   },
+   {
+    "path": "",
+    "op": "json_contains",
+    "value": "Is this number right"
+   }
+  ]
+ },
+ {
+  "id": "reply_discussion",
+  "expected_tool": "notion-create-comment",
+  "prompt": "Reply \"Fixed in the latest draft\" to the existing discussion discussion://7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c/5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d on the Notion page 7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+   },
+   {
+    "path": "discussion_id",
+    "op": "lower_contains",
+    "value": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+   },
+   {
+    "path": "",
+    "op": "json_contains",
+    "value": "Fixed in the latest draft"
+   }
+  ]
+ },
+ {
+  "id": "get_comments_all",
+  "expected_tool": "notion-get-comments",
+  "prompt": "Get every discussion on the Notion page 195de922-1179-449f-ab80-75a27c979105, including resolved discussions and discussions on child blocks.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "195de922-1179-449f-ab80-75a27c979105"
+   },
+   {
+    "path": "include_resolved",
+    "op": "equals",
+    "value": true
+   },
+   {
+    "path": "include_all_blocks",
+    "op": "equals",
+    "value": true
+   }
+  ]
+ },
+ {
+  "id": "query_sql",
+  "expected_tool": "notion-query-data-sources",
+  "prompt": "Using SQL, get all rows from the Notion data source collection://f336d0bc-b841-465b-8045-024475c079dd whose Status is \"Blocked\".",
+  "checks": [
+   {
+    "path": "data.data_source_urls",
+    "op": "contains_id",
+    "value": "f336d0bc-b841-465b-8045-024475c079dd"
+   },
+   {
+    "path": "data.query",
+    "op": "lower_contains",
+    "value": "select"
+   },
+   {
+    "path": "data",
+    "op": "json_contains",
+    "value": "Blocked"
+   }
+  ]
+ },
+ {
+  "id": "query_view",
+  "expected_tool": "notion-query-data-sources",
+  "prompt": "Query the saved Notion database view https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5 and return 25 rows.",
+  "checks": [
+   {
+    "path": "data.mode",
+    "op": "equals",
+    "value": "view"
+   },
+   {
+    "path": "data.view_url",
+    "op": "equals",
+    "value": "https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5"
+   },
+   {
+    "path": "data.page_size",
+    "op": "num_equals",
+    "value": 25
+   }
+  ]
+ },
+ {
+  "id": "query_rows_checkbox",
+  "expected_tool": "notion-query-data-sources",
+  "prompt": "Use the structured rows mode (not SQL) on the Notion data source collection://f336d0bc-b841-465b-8045-024475c079dd to list rows where the checkbox property \"Done\" is unchecked.",
+  "checks": [
+   {
+    "path": "data.mode",
+    "op": "equals",
+    "value": "rows"
+   },
+   {
+    "path": "data.data_source_url",
+    "op": "contains_id",
+    "value": "f336d0bc-b841-465b-8045-024475c079dd"
+   },
+   {
+    "path": "data.filter.type",
+    "op": "equals",
+    "value": "group"
+   },
+   {
+    "path": "data.filter.filters.0.property",
+    "op": "equals",
+    "value": "Done"
+   },
+   {
+    "path": "data.filter.filters.0.propertyType",
+    "op": "equals",
+    "value": "checkbox"
+   },
+   {
+    "path": "data.filter.filters.0.value.value",
+    "op": "equals",
+    "value": false
+   }
+  ]
+ },
+ {
+  "id": "meeting_notes_title",
+  "expected_tool": "notion-query-meeting-notes",
+  "prompt": "Find my Notion meeting notes whose title contains \"standup\".",
+  "checks": [
+   {
+    "path": "filter.filters.0.property",
+    "op": "equals",
+    "value": "title"
+   },
+   {
+    "path": "filter.filters.0.filter.operator",
+    "op": "equals",
+    "value": "string_contains"
+   },
+   {
+    "path": "filter.filters.0.filter.value.type",
+    "op": "equals",
+    "value": "exact"
+   },
+   {
+    "path": "filter.filters.0.filter.value.value",
+    "op": "lower_contains",
+    "value": "standup"
+   }
+  ]
+ },
+ {
+  "id": "create_database_ddl",
+  "expected_tool": "notion-create-database",
+  "prompt": "Create a Notion database titled \"Bug tracker\" under the page 195de922-1179-449f-ab80-75a27c979105 with a title column \"Title\", a select column \"Severity\" with options low and high, and a checkbox column \"Fixed\".",
+  "checks": [
+   {
+    "path": "parent.page_id",
+    "op": "contains_id",
+    "value": "195de922-1179-449f-ab80-75a27c979105"
+   },
+   {
+    "path": "title",
+    "op": "equals",
+    "value": "Bug tracker"
+   },
+   {
+    "path": "schema",
+    "op": "lower_contains",
+    "value": "create table"
+   },
+   {
+    "path": "schema",
+    "op": "lower_contains",
+    "value": "severity"
+   },
+   {
+    "path": "database_type",
+    "op": "absent"
+   }
+  ]
+ },
+ {
+  "id": "create_database_tasks",
+  "expected_tool": "notion-create-database",
+  "prompt": "Create Notion's canonical tasks database under the page a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60.",
+  "checks": [
+   {
+    "path": "parent.page_id",
+    "op": "contains_id",
+    "value": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+   },
+   {
+    "path": "database_type",
+    "op": "equals",
+    "value": "tasks"
+   },
+   {
+    "path": "schema",
+    "op": "absent"
+   }
+  ]
+ },
+ {
+  "id": "create_view_board",
+  "expected_tool": "notion-create-view",
+  "prompt": "Add a board view named \"By status\" to the Notion database 0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21 (data source f336d0bc-b841-465b-8045-024475c079dd), grouped by the Status property.",
+  "checks": [
+   {
+    "path": "type",
+    "op": "equals",
+    "value": "board"
+   },
+   {
+    "path": "name",
+    "op": "equals",
+    "value": "By status"
+   },
+   {
+    "path": "data_source_id",
+    "op": "contains_id",
+    "value": "f336d0bc-b841-465b-8045-024475c079dd"
+   },
+   {
+    "path": "database_id",
+    "op": "contains_id",
+    "value": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+   },
+   {
+    "path": "configure",
+    "op": "lower_contains",
+    "value": "group by"
+   }
+  ]
+ },
+ {
+  "id": "query_sessions_failed",
+  "expected_tool": "notion-query-sessions",
+  "prompt": "List the Notion agent sessions whose status is failed.",
+  "checks": [
+   {
+    "path": "filter.property",
+    "op": "equals",
+    "value": "status"
+   },
+   {
+    "path": "filter.status",
+    "op": "json_contains",
+    "value": "failed"
+   }
+  ]
+ },
+ {
+  "id": "ctl_get_users",
+  "expected_tool": "notion-get-users",
+  "control": true,
+  "prompt": "List the Notion workspace users whose name matches \"priya\".",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "priya"
+   }
+  ]
+ },
+ {
+  "id": "ctl_get_self",
+  "expected_tool": "notion-get-users",
+  "control": true,
+  "prompt": "Fetch my own Notion user record (the current user).",
+  "checks": [
+   {
+    "path": "user_id",
+    "op": "equals",
+    "value": "self"
+   }
+  ]
+ },
+ {
+  "id": "ctl_duplicate",
+  "expected_tool": "notion-duplicate-page",
+  "control": true,
+  "prompt": "Duplicate the Notion page a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60.",
+  "checks": [
+   {
+    "path": "page_id",
+    "op": "contains_id",
+    "value": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+   }
+  ]
+ },
+ {
+  "id": "ctl_recent",
+  "expected_tool": "notion-list-recent-pages",
+  "control": true,
+  "prompt": "List the 15 Notion pages I viewed most recently.",
+  "checks": [
+   {
+    "path": "limit",
+    "op": "num_equals",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "id": "ctl_teams",
+  "expected_tool": "notion-get-teams",
+  "control": true,
+  "prompt": "Find the Notion teamspace called \"Design\".",
+  "checks": [
+   {
+    "path": "query",
+    "op": "lower_contains",
+    "value": "design"
+   }
+  ]
+ }
+]
