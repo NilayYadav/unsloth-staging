@@ -1,0 +1,3646 @@
+[
+ {
+  "side": "before",
+  "ref": "38d4a4869ad3173ba7cad99682f5c8726e72f14d",
+  "checked_out": "38d4a4869ad3173ba7cad99682f5c8726e72f14d",
+  "pr_code_present": false,
+  "startup_s": 24.1,
+  "mcp_server_id": "b6086be2fb3448b9",
+  "model": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+  "max_seq_length": 100000,
+  "load_s": 203.6,
+  "context_length": 100000,
+  "count_tokens": {
+   "input_tokens": 64916,
+   "model": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF"
+  },
+  "scored": [
+   {
+    "id": "search_created_range",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 204.02,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "quarterly roadmap",
+      "filters": {
+       "created_date_range": {
+        "start_date": "2026-01-01",
+        "end_date": "2026-03-31"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "search_created_by",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 202.25,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "onboarding",
+      "created_by_user_ids": [
+       "4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07"
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filters.created_by_user_ids contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_sort_size",
+    "control": false,
+    "n_calls": 3,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 163.44,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "incident postmortem",
+      "sort": "last_edited",
+      "page_size": 5
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "search_user",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 65.28,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "maria.lopez@example.com",
+      "query_type": "user"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "fetch_discussions",
+    "control": false,
+    "n_calls": 5,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 229.2,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "https://www.notion.so/acme/Launch-plan-195de9221179449fab8075a27c979105",
+      "include_discussions": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_page_under_page",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 97.57,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "195de922-1179-449f-ab80-75a27c979105"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "parent.page_id contains_id",
+      "pages.0.properties.title lower_contains",
+      "pages.0.content lower_contains"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_row_in_data_source",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 96.99,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "rows",
+       "data_source_url": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "limit": 1
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "parent.data_source_id contains_id",
+      "pages.0.properties.Name equals",
+      "pages.0.properties.Status equals",
+      "pages.0.properties.Priority num_equals"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "update_properties",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 97.07,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "command equals",
+      "properties.Status equals",
+      "properties.Estimate num_equals"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "update_content_replace",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 96.45,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "command equals",
+      "content_updates.0.old_str equals",
+      "content_updates.0.new_str equals"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "insert_content_start",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 102.15,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "command equals",
+      "position.type equals",
+      "content lower_contains"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "update_verification",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 63.33,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "update_verification",
+      "verification_status": "verified",
+      "verification_expiry_days": 30
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_workspace",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 64.94,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "195de922-1179-449f-ab80-75a27c979105",
+       "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+      ],
+      "new_parent": {
+       "type": "workspace"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_database",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 98.62,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_or_database_ids contains_id",
+      "new_parent.database_id contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "comment_on_selection",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 96.29,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "selection_with_ellipsis exists",
+      " json_contains"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "reply_discussion",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 97.54,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-get-comments",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "discussion_id": "discussion://7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c/5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      " json_contains"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "get_comments_all",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 64.26,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-comments",
+     "arguments": {
+      "page_id": "195de922-1179-449f-ab80-75a27c979105",
+      "include_resolved": true,
+      "include_all_blocks": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_sql",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 101.41,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "sql",
+       "data_source_urls": [
+        "collection://f336d0bc-b841-465b-8045-024475c079dd"
+       ],
+       "query": "SELECT * FROM \"collection://f336d0bc-b841-465b-8045-024475c079dd\" WHERE \"Status\" = 'Blocked'"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_view",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 94.56,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "view",
+       "view_url": "https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5",
+       "page_size": 25
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_rows_checkbox",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 64.91,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "rows",
+       "data_source_url": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "filter": {
+        "type": "group",
+        "operator": "and",
+        "filters": [
+         {
+          "type": "property",
+          "property": "Done",
+          "propertyType": "checkbox",
+          "operator": "checkbox_is_not",
+          "value": {
+           "type": "exact",
+           "value": true
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "data.filter.filters.0.value.value equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "meeting_notes_title",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 66.17,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-meeting-notes",
+     "arguments": {
+      "filter": {
+       "operator": "and",
+       "filters": [
+        {
+         "property": "title",
+         "filter": {
+          "operator": "string_contains",
+          "value": {
+           "type": "exact",
+           "value": "standup"
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_database_ddl",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 65.33,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "195de922-1179-449f-ab80-75a27c979105",
+       "type": "page_id"
+      },
+      "title": "Bug tracker",
+      "schema": "CREATE TABLE (\"Title\" TITLE, \"Severity\" SELECT('low':default, 'high':red), \"Fixed\" CHECKBOX)"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_database_tasks",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 96.79,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "self"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "parent.page_id contains_id",
+      "database_type equals"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_view_board",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 98.1,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "type equals",
+      "name equals",
+      "data_source_id contains_id",
+      "database_id contains_id",
+      "configure lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_sessions_failed",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 70.91,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-sessions",
+     "arguments": {
+      "filter": {
+       "property": "status",
+       "status": {
+        "equals": "failed"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_users",
+    "control": true,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 95.46,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "priya"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_self",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 63.43,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "self"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "user_id equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "ctl_duplicate",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 65.26,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-duplicate-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_recent",
+    "control": true,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 103.88,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-list-recent-pages",
+     "arguments": {
+      "limit": 15
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_teams",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 94.94,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-teams",
+     "arguments": {
+      "query": "Design"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   }
+  ]
+ },
+ {
+  "side": "after",
+  "ref": "be846ee102051eb833ae3770a0d40a3e8b3e05e9",
+  "checked_out": "be846ee102051eb833ae3770a0d40a3e8b3e05e9",
+  "pr_code_present": true,
+  "startup_s": 15.9,
+  "mcp_server_id": "54c3d12114c84301",
+  "model": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+  "max_seq_length": 100000,
+  "load_s": 48.4,
+  "context_length": 100000,
+  "count_tokens": {
+   "input_tokens": 9409,
+   "model": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF"
+  },
+  "scored": [
+   {
+    "id": "search_created_range",
+    "control": false,
+    "n_calls": 4,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 1,
+    "error": null,
+    "wall_s": 25.62,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "quarterly roadmap",
+      "query_type": "user",
+      "sort": "created",
+      "page_size": 100,
+      "max_highlight_length": 200
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "100 is greater than the maximum of 50"
+     ],
+     "failed_checks": [
+      "filters.created_date_range.start_date equals",
+      "filters.created_date_range.end_date equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_created_by",
+    "control": false,
+    "n_calls": 3,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 16.84,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "onboarding",
+      "query_type": "user",
+      "filters": {
+       "created_by": "4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filters.created_by_user_ids contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_sort_size",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 25.58,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "incident postmortem",
+      "sort": "last_edited",
+      "page_size": 5
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "search_user",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.85,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "maria.lopez@example.com"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "query_type equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "fetch_discussions",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 11.38,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "https://www.notion.so/acme/Launch-plan-195de9221179449fab8075a27c979105",
+      "include_discussions": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_page_under_page",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 5,
+    "error": null,
+    "wall_s": 26.16,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-pages",
+     "arguments": {
+      "pages": [
+       {
+        "parent": {
+         "page_id": "195de922-1179-449f-ab80-75a27c979105"
+        },
+        "title": "Launch checklist",
+        "content": "- Book venue\n- Send invites"
+       }
+      ],
+      "creation_mode": "draft"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "Additional properties are not allowed ('parent', 'title' were unexpected)"
+     ],
+     "failed_checks": [
+      "parent.page_id contains_id",
+      "pages.0.properties.title lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_row_in_data_source",
+    "control": false,
+    "n_calls": 5,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 35.84,
+    "tool_correct": false,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "f336d0bc-b841-465b-8045-024475c079dd",
+       "query": "SELECT * FROM \"f336d0bc-b841-465b-8045-024475c079dd\" LIMIT 1"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'f336d0bc-b841-465b-8045-024475c079dd', 'query': 'SELECT * FROM \"f336d0bc-b841-465b-8045-024475c079dd\" LIMIT 1'} is not valid under any of th"
+     ],
+     "failed_checks": [
+      "parent.data_source_id contains_id",
+      "pages.0.properties.Name equals",
+      "pages.0.properties.Status equals",
+      "pages.0.properties.Priority num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_properties",
+    "control": false,
+    "n_calls": 3,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 22.06,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "command": "update_properties",
+      "properties": {
+       "Status": {
+        "status": {
+         "name": "Done"
+        }
+       },
+       "Estimate": {
+        "number": 3
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'status': {'name': 'Done'}} is not valid under any of the given schemas",
+      "{'number': 3} is not valid under any of the given schemas"
+     ],
+     "failed_checks": [
+      "properties.Status equals",
+      "properties.Estimate num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_content_replace",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 11.54,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "command equals",
+      "content_updates.0.old_str equals",
+      "content_updates.0.new_str equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "insert_content_start",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 1,
+    "error": null,
+    "wall_s": 17.0,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "page_id contains_id",
+      "command equals",
+      "position.type equals",
+      "content lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_verification",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.86,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "update_verification",
+      "verification_status": "verified",
+      "verification_expiry_days": 30
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_workspace",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 29.85,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "195de922-1179-449f-ab80-75a27c979105",
+       "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+      ],
+      "new_parent": {
+       "workspace": true
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'workspace': True} is not valid under any of the given schemas"
+     ],
+     "failed_checks": [
+      "new_parent.type equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "move_to_database",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 8.46,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      ],
+      "new_parent": {
+       "database_id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "comment_on_selection",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.71,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "selection_with_ellipsis": "Revenue grew 40% year over year across all regions",
+      "rich_text": [
+       {
+        "type": "text",
+        "text": {
+         "content": "Is this number right?"
+        }
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "reply_discussion",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.52,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "discussion_id": "5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9",
+      "rich_text": [
+       {
+        "type": "text",
+        "text": {
+         "content": "Fixed in the latest draft"
+        }
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "discussion_id lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "get_comments_all",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.8,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-comments",
+     "arguments": {
+      "page_id": "195de922-1179-449f-ab80-75a27c979105",
+      "include_resolved": true,
+      "include_all_blocks": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_sql",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 5,
+    "error": null,
+    "wall_s": 26.54,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "query": "SELECT * FROM \"main\" WHERE \"Status\" = 'Blocked'"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'collection://f336d0bc-b841-465b-8045-024475c079dd', 'query': 'SELECT * FROM \"main\" WHERE \"Status\" = \\'Blocked\\''} is not valid under any of "
+     ],
+     "failed_checks": [
+      "data.data_source_urls contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_view",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 26.53,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "data.mode equals",
+      "data.view_url equals",
+      "data.page_size num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_rows_checkbox",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 26.3,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "mode": "structured_rows",
+       "filter": {
+        "property": "Done",
+        "checkbox": {
+         "equals": false
+        }
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'collection://f336d0bc-b841-465b-8045-024475c079dd', 'mode': 'structured_rows', 'filter': {'property': 'Done', 'checkbox': {'equals': False}}"
+     ],
+     "failed_checks": [
+      "data.mode equals",
+      "data.data_source_url contains_id",
+      "data.filter.type equals",
+      "data.filter.filters.0.property equals",
+      "data.filter.filters.0.propertyType equals",
+      "data.filter.filters.0.value.value equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "meeting_notes_title",
+    "control": false,
+    "n_calls": 4,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 21.42,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-meeting-notes",
+     "arguments": {
+      "filter": {
+       "property": "title",
+       "text": {
+        "contains": "standup"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "'operator' is a required property"
+     ],
+     "failed_checks": [
+      "filter.filters.0.property equals",
+      "filter.filters.0.filter.operator equals",
+      "filter.filters.0.filter.value.type equals",
+      "filter.filters.0.filter.value.value lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_database_ddl",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 8.02,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "195de922-1179-449f-ab80-75a27c979105"
+      },
+      "title": "Bug tracker",
+      "schema": "CREATE TABLE \"Bug tracker\" (\n  \"Title\" TEXT,\n  \"Severity\" SELECT ('low', 'high'),\n  \"Fixed\" BOOLEAN\n);"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_database_tasks",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.26,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      },
+      "database_type": "tasks"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_view_board",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.54,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-view",
+     "arguments": {
+      "data_source_id": "f336d0bc-b841-465b-8045-024475c079dd",
+      "name": "By status",
+      "type": "board",
+      "configure": "{\"group_by\":\"Status\"}"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "database_id contains_id",
+      "configure lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_sessions_failed",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 26.59,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-sessions",
+     "arguments": {
+      "filter": {
+       "status": "failed"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'status': 'failed'} is not valid under any of the given schemas"
+     ],
+     "failed_checks": [
+      "filter.property equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "ctl_get_users",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.78,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "priya"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_self",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.25,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "user_id": "self"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_duplicate",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.43,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-duplicate-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_recent",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 10.76,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-list-recent-pages",
+     "arguments": {
+      "limit": 15
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_teams",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.21,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-teams",
+     "arguments": {
+      "query": "Design"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   }
+  ]
+ },
+ {
+  "side": "before",
+  "ref": "38d4a4869ad3173ba7cad99682f5c8726e72f14d",
+  "checked_out": "38d4a4869ad3173ba7cad99682f5c8726e72f14d",
+  "pr_code_present": false,
+  "startup_s": 17.0,
+  "mcp_server_id": "00964cd493654937",
+  "model": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+  "max_seq_length": 100000,
+  "load_s": 31.4,
+  "context_length": 100000,
+  "count_tokens": {
+   "input_tokens": 64960,
+   "model": "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+  },
+  "scored": [
+   {
+    "id": "search_created_range",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 48.47,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "quarterly roadmap",
+      "filters": {
+       "created_date_range": {
+        "start_date": "2026-01-01",
+        "end_date": "2026-03-31"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "search_created_by",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.93,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "onboarding",
+      "query_type": "user",
+      "user_id": "4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filters.created_by_user_ids contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_sort_size",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.2,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-ai-search",
+     "arguments": {
+      "query": "incident postmortem",
+      "sort": "last_edited",
+      "page_size": 5
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_user",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.63,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "maria.lopez@example.com",
+      "query_type": "user"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "fetch_discussions",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.74,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "https://www.notion.so/acme/Launch-plan-195de9221179449fab8075a27c979105",
+      "include_discussions": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_page_under_page",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 5,
+    "error": null,
+    "wall_s": 139.21,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-pages",
+     "arguments": {
+      "pages": [
+       {
+        "properties": {
+         "title": "Launch checklist"
+        },
+        "content": "- Book venue\n- Send invites"
+       },
+       {
+        "parent": {
+         "page_id": "195de922-1179-449f-ab80-75a27c979105"
+        }
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "Additional properties are not allowed ('parent' was unexpected)"
+     ],
+     "failed_checks": [
+      "parent.page_id contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_row_in_data_source",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 47.94,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "rows",
+       "data_source_url": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "filter": {
+        "type": "group",
+        "operator": "and",
+        "filters": [
+         {
+          "type": "property",
+          "property": "Name",
+          "propertyType": "title",
+          "operator": "string_is",
+          "value": {
+           "type": "exact",
+           "value": "Fix login bug"
+          }
+         },
+         {
+          "type": "property",
+          "property": "Status",
+          "propertyType": "select",
+          "operator": "enum_is",
+          "value": {
+           "type": "exact",
+           "value": "In progress"
+          }
+         },
+         {
+          "type": "property",
+          "property": "Priority",
+          "propertyType": "number",
+          "operator": "number_equals",
+          "value": {
+           "type": "exact",
+           "value": 2
+          }
+         }
+        ]
+       },
+       "limit": 1
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "parent.data_source_id contains_id",
+      "pages.0.properties.Name equals",
+      "pages.0.properties.Status equals",
+      "pages.0.properties.Priority num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_properties",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.87,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "command": "update_properties",
+      "properties": {
+       "status": "Done",
+       "estimate": 3
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "properties.Status equals",
+      "properties.Estimate num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_content_replace",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 46.07,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "command": "update_content",
+      "content_updates": [
+       {
+        "old_str": "Q3 target: 10k users",
+        "new_str": "Q3 target: 12k users"
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "insert_content_start",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.64,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "insert_content",
+      "content": "> Draft - do not share",
+      "position": {
+       "type": "start"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "update_verification",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.28,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "update_verification",
+      "verification_status": "verified",
+      "verification_expiry_days": 30
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_workspace",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.04,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "195de922-1179-449f-ab80-75a27c979105",
+       "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+      ],
+      "new_parent": {
+       "type": "workspace"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_database",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.63,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      ],
+      "new_parent": {
+       "database_id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "comment_on_selection",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.15,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "selection_with_ellipsis": "Revenue grew 40% year over year across all regions",
+      "markdown": "Is this number right?"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "reply_discussion",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.51,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "discussion_id": "discussion://7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c/5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "markdown": "Fixed in the latest draft"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "get_comments_all",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.04,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-comments",
+     "arguments": {
+      "page_id": "195de922-1179-449f-ab80-75a27c979105",
+      "include_resolved": true,
+      "include_all_blocks": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_sql",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.83,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "sql",
+       "data_source_urls": [
+        "collection://f336d0bc-b841-465b-8045-024475c079dd"
+       ],
+       "query": "SELECT * FROM \"collection://f336d0bc-b841-465b-8045-024475c079dd\" WHERE Status = 'Blocked'"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_view",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.44,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "view",
+       "view_url": "https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5",
+       "page_size": 25
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_rows_checkbox",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 6,
+    "error": null,
+    "wall_s": 141.09,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "mode": "rows",
+       "data_source_url": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "filter": {
+        "type": "property",
+        "property": "Done",
+        "propertyType": "checkbox",
+        "operator": "checkbox_is_not",
+        "value": {
+         "type": "exact",
+         "value": "____"
+        }
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'mode': 'rows', 'data_source_url': 'collection://f336d0bc-b841-465b-8045-024475c079dd', 'filter': {'type': 'property', 'property': 'Done', 'propertyType': 'che"
+     ],
+     "failed_checks": [
+      "data.filter.type equals",
+      "data.filter.filters.0.property equals",
+      "data.filter.filters.0.propertyType equals",
+      "data.filter.filters.0.value.value equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "meeting_notes_title",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.59,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-meeting-notes",
+     "arguments": {
+      "filter": {
+       "operator": "and",
+       "filters": [
+        {
+         "property": "title",
+         "filter": {
+          "operator": "string_contains",
+          "value": {
+           "type": "exact",
+           "value": "standup"
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_database_ddl",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 68.74,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "195de922-1179-449f-ab80-75a27c979105"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "parent.page_id contains_id",
+      "title equals",
+      "schema lower_contains",
+      "schema lower_contains"
+     ]
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_database_tasks",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 47.55,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      },
+      "title": "Tasks",
+      "database_type": "tasks"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_view_board",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 45.73,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-view",
+     "arguments": {
+      "data_source_id": "f336d0bc-b841-465b-8045-024475c079dd",
+      "name": "By status",
+      "type": "board",
+      "database_id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21",
+      "configure": "GROUP BY \"Status\""
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_sessions_failed",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.62,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-query-sessions",
+     "arguments": {
+      "filter": {
+       "property": "status",
+       "status": {
+        "equals": "failed"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_users",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.9,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "priya"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_self",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.68,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "self"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "user_id equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "ctl_duplicate",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.99,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-duplicate-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_recent",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.38,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-list-recent-pages",
+     "arguments": {
+      "limit": 15
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_teams",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 44.6,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-teams",
+     "arguments": {
+      "query": "Design"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   }
+  ]
+ },
+ {
+  "side": "after",
+  "ref": "be846ee102051eb833ae3770a0d40a3e8b3e05e9",
+  "checked_out": "be846ee102051eb833ae3770a0d40a3e8b3e05e9",
+  "pr_code_present": true,
+  "startup_s": 12.3,
+  "mcp_server_id": "a27b8ba18f7840c5",
+  "model": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+  "max_seq_length": 100000,
+  "load_s": 35.2,
+  "context_length": 100000,
+  "count_tokens": {
+   "input_tokens": 9365,
+   "model": "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+  },
+  "scored": [
+   {
+    "id": "search_created_range",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 7.63,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "quarterly roadmap",
+      "data_source_url": "self",
+      "filters": {
+       "created": {
+        "date_from": "2026-01-01",
+        "date_to": "2026-03-31"
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filters.created_date_range.start_date equals",
+      "filters.created_date_range.end_date equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_created_by",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 5.27,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "onboarding",
+      "data_source_url": "https://www.notion.so",
+      "filters": {
+       "created_by": "4b8e2f1c-7a3d-4e9b-a2c6-5d1f8e3b9a07"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filters.created_by_user_ids contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "search_sort_size",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.42,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-search",
+     "arguments": {
+      "query": "incident postmortem",
+      "sort": "last_edited",
+      "page_size": 5
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "search_user",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.67,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "maria.lopez@example.com"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "query_type equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "fetch_discussions",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.55,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-fetch",
+     "arguments": {
+      "id": "https://www.notion.so/acme/Launch-plan-195de9221179449fab8075a27c979105",
+      "include_discussions": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_page_under_page",
+    "control": false,
+    "n_calls": 5,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 4,
+    "error": null,
+    "wall_s": 15.56,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-pages",
+     "arguments": {
+      "pages": [
+       {
+        "title": "Launch checklist",
+        "parent": {
+         "page_id": "195de922-1179-449f-ab80-75a27c979105"
+        },
+        "content": "- Book venue\n- Send invites"
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "Additional properties are not allowed ('parent', 'title' were unexpected)"
+     ],
+     "failed_checks": [
+      "parent.page_id contains_id",
+      "pages.0.properties.title lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_row_in_data_source",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 10.99,
+    "tool_correct": false,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "f336d0bc-b841-465b-8045-024475c079dd",
+       "query": "SELECT * FROM \"Tasks\" WHERE Name = 'Fix login bug'"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'f336d0bc-b841-465b-8045-024475c079dd', 'query': 'SELECT * FROM \"Tasks\" WHERE Name = \\'Fix login bug\\''} is not valid under any of the given "
+     ],
+     "failed_checks": [
+      "parent.data_source_id contains_id",
+      "pages.0.properties.Name equals",
+      "pages.0.properties.Status equals",
+      "pages.0.properties.Priority num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_properties",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.78,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "command": "update_properties",
+      "properties": {
+       "Status": "Done",
+       "Estimate number": 3
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "properties.Estimate num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_content_replace",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.91,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "command": "update_content",
+      "content": "Q3 target: 12k users"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "content_updates.0.old_str equals",
+      "content_updates.0.new_str equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "insert_content_start",
+    "control": false,
+    "n_calls": 4,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 13.13,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "insert_content",
+      "position": {
+       "anchor": "start"
+      },
+      "icon": "",
+      "cover": "",
+      "is_skill": false,
+      "allow_async": false
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'anchor': 'start'} is not valid under any of the given schemas"
+     ],
+     "failed_checks": [
+      "position.type equals",
+      "content lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "update_verification",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.58,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-update-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60",
+      "command": "update_verification",
+      "verification_status": "verified",
+      "verification_expiry_days": 30
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "move_to_workspace",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 5.25,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "195de922-1179-449f-ab80-75a27c979105",
+       "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c"
+      ],
+      "new_parent": {
+       "page_id": "root"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "new_parent.type equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "move_to_database",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.94,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-move-pages",
+     "arguments": {
+      "page_or_database_ids": [
+       "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      ],
+      "new_parent": {
+       "database_id": "0f3b9c2d-6e4a-4b1f-9c8d-7e6f5a4b3c21"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "comment_on_selection",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 22.75,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "markdown": "Is this number right?"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "selection_with_ellipsis exists"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "reply_discussion",
+    "control": false,
+    "n_calls": 2,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 2,
+    "error": null,
+    "wall_s": 16.23,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-comment",
+     "arguments": {
+      "page_id": "7c2e4b1a-9d3f-4e8a-b6c1-2f5d8e9a0b3c",
+      "discussion_id": "5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9",
+      "rich_text": [
+       {
+        "type": "user",
+        "elements": [
+         {
+          "type": "text",
+          "elements": [
+           {
+            "type": "user",
+            "text": "Reply",
+            "user_id": "user_123"
+           }
+          ]
+         }
+        ],
+        "text": "Reply",
+        "user_id": "user_123"
+       },
+       {
+        "type": "paragraph",
+        "elements": [
+         {
+          "type": "text",
+          "elements": [
+           {
+            "type": "user",
+            "text": "Fixed in the latest draft",
+            "user_id": "user_123"
+           }
+          ]
+         }
+        ],
+        "text": "Fixed in the latest draft",
+        "user_id": "user_123"
+       }
+      ]
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'type': 'user', 'elements': [{'type': 'text', 'elements': [{'type': 'user', 'text': 'Reply', 'user_id': 'user_123'}]}], 'text': 'Reply', 'user_id': 'user_123'}",
+      "{'type': 'paragraph', 'elements': [{'type': 'text', 'elements': [{'type': 'user', 'text': 'Fixed in the latest draft', 'user_id': 'user_123'}]}], 'text': 'Fixed"
+     ],
+     "failed_checks": [
+      "discussion_id lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "get_comments_all",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.58,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-comments",
+     "arguments": {
+      "page_id": "195de922-1179-449f-ab80-75a27c979105",
+      "include_resolved": true,
+      "include_all_blocks": true
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "query_sql",
+    "control": false,
+    "n_calls": 5,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 19.66,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "query": "SELECT * FROM \"Status\" WHERE \"Status\" = 'Blocked'"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'collection://f336d0bc-b841-465b-8045-024475c079dd', 'query': 'SELECT * FROM \"Status\" WHERE \"Status\" = \\'Blocked\\''} is not valid under any o"
+     ],
+     "failed_checks": [
+      "data.data_source_urls contains_id"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_view",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 3,
+    "error": null,
+    "wall_s": 21.42,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "view_url": "https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'view_url': 'https://www.notion.so/acme/0f3b9c2d6e4a4b1f9c8d7e6f5a4b3c21?v=9a1c2b3d4e5f46a7b8c9d0e1f2a3b4c5'} is not valid under any of the given schemas"
+     ],
+     "failed_checks": [
+      "data.mode equals",
+      "data.page_size num_equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_rows_checkbox",
+    "control": false,
+    "n_calls": 5,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 4,
+    "error": null,
+    "wall_s": 19.59,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-data-sources",
+     "arguments": {
+      "data": {
+       "data_source_id": "collection://f336d0bc-b841-465b-8045-024475c079dd",
+       "filter": {
+        "property": "Done",
+        "checkbox": false
+       }
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "{'data_source_id': 'collection://f336d0bc-b841-465b-8045-024475c079dd', 'filter': {'property': 'Done', 'checkbox': False}} is not valid under any of the given s"
+     ],
+     "failed_checks": [
+      "data.mode equals",
+      "data.data_source_url contains_id",
+      "data.filter.type equals",
+      "data.filter.filters.0.property equals",
+      "data.filter.filters.0.propertyType equals",
+      "data.filter.filters.0.value.value equals"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "meeting_notes_title",
+    "control": false,
+    "n_calls": 6,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 4,
+    "error": null,
+    "wall_s": 17.18,
+    "tool_correct": true,
+    "schema_valid": false,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-query-meeting-notes",
+     "arguments": {
+      "filter": {
+       "title": "standup"
+      }
+     }
+    },
+    "first_detail": {
+     "schema_errors": [
+      "'operator' is a required property"
+     ],
+     "failed_checks": [
+      "filter.filters.0.property equals",
+      "filter.filters.0.filter.operator equals",
+      "filter.filters.0.filter.value.type equals",
+      "filter.filters.0.filter.value.value lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_database_ddl",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 5.95,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "195de922-1179-449f-ab80-75a27c979105"
+      },
+      "title": "Bug tracker",
+      "schema": "{\n  \"properties\": {\n    \"Title\": {\n      \"type\": \"title\"\n    },\n    \"Severity\": {\n      \"type\": \"select\",\n      \"options\": [\n        {\"name\": \"low\"},\n        {\"name\": \"high\"}\n      ]\n    },\n    \"Fixed\": {\n      \"type\": \"checkbox\"\n    }\n  }\n}",
+      "database_type": "tasks"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "schema lower_contains",
+      "database_type absent"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "create_database_tasks",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 5.13,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-create-database",
+     "arguments": {
+      "parent": {
+       "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+      },
+      "title": "Tasks",
+      "database_type": "tasks"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "create_view_board",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.63,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-create-view",
+     "arguments": {
+      "data_source_id": "f336d0bc-b841-465b-8045-024475c079dd",
+      "name": "By status",
+      "type": "board",
+      "configure": "{\"group_by\": \"Status\"}"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "database_id contains_id",
+      "configure lower_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "query_sessions_failed",
+    "control": false,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.68,
+    "tool_correct": false,
+    "schema_valid": true,
+    "checks_passed": false,
+    "strict": false,
+    "first_call": {
+     "name": "notion-search-sessions",
+     "arguments": {
+      "question": "failed",
+      "lookback": "30d"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": [
+      "filter.property equals",
+      "filter.status json_contains"
+     ]
+    },
+    "any_correct": false
+   },
+   {
+    "id": "ctl_get_users",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 3.95,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "query": "priya"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_get_self",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.21,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-users",
+     "arguments": {
+      "user_id": "self"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_duplicate",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.53,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-duplicate-page",
+     "arguments": {
+      "page_id": "a41f0c7e-3b2d-4c5e-8f9a-1b2c3d4e5f60"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_recent",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.17,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-list-recent-pages",
+     "arguments": {
+      "limit": 15
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   },
+   {
+    "id": "ctl_teams",
+    "control": true,
+    "n_calls": 1,
+    "no_call": false,
+    "schema_tool_calls": 0,
+    "tool_errors": 0,
+    "error": null,
+    "wall_s": 4.45,
+    "tool_correct": true,
+    "schema_valid": true,
+    "checks_passed": true,
+    "strict": true,
+    "first_call": {
+     "name": "notion-get-teams",
+     "arguments": {
+      "query": "Design"
+     }
+    },
+    "first_detail": {
+     "schema_errors": [],
+     "failed_checks": []
+    },
+    "any_correct": true
+   }
+  ]
+ }
+]
