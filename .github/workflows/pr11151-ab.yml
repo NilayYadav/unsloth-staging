@@ -27,7 +27,7 @@ jobs:
           pip install python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 requests typer 'numpy<3' pytest httpx
           pip install -e . --no-deps
       - name: git diff vs upstream main (implementation under test)
-        run: git log --oneline -3 && git show --stat HEAD | head -20
+        run: git show --stat --format="%H %s" HEAD
       - name: PR unit tests
         env:
           PYTHONPATH: ${{ github.workspace }}/studio
