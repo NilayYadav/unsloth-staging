@@ -1,0 +1,37 @@
+name: "PR 11151 Ctrl+C exit code A/B"
+on:
+  push:
+    branches: [pr11151-ab-after-20260916205522, pr11151-ab-before-20260916205522]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 requests typer 'numpy<3' pytest httpx
+          pip install -e . --no-deps
+      - name: git diff vs upstream main (implementation under test)
+        run: git log --oneline -3 && git show --stat HEAD | head -20
+      - name: PR unit tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/studio
+        run: python -m pytest unsloth_cli/tests/test_train_ctrl_c_exit_code.py -v --tb=short
+      - name: Real SIGINT probe (unsloth train && export chain)
+        if: always() && runner.os != 'Windows'
+        run: python evidence/pr11151/sigint_probe.py
