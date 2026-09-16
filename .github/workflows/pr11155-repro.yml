@@ -1,0 +1,42 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11155 repro (head)"
+
+on:
+  push:
+    branches:
+      - "pr11155-ab-head-20260916215603"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Install backend test deps"
+        shell: bash
+        run: |
+          python -m pip install -q -r studio/backend/requirements/studio.txt
+          python -m pip install -q python-multipart aiofiles sqlalchemy psutil pyyaml pytest pytest-timeout
+          python -m pip install -q 'torch>=2.4,<2.11' --index-url https://download.pytorch.org/whl/cpu
+          git rev-parse HEAD
+          git diff --stat HEAD~1 HEAD -- studio/backend/utils || true
+
+      - name: "PR 11155 repro: UNSLOTH_DISABLE_UPDATE_CHECK stops GitHub checks"
+        shell: bash
+        run: |
+          cd studio/backend
+          python -m pytest -v --tb=line -p no:cacheprovider tests/test_combined_update.py::test_status_skips_github_when_update_checks_disabled tests/test_combined_update.py::test_whisper_source_build_skips_probe_when_update_checks_disabled tests/test_llama_backend_switch.py::test_status_skips_the_resolver_when_update_checks_disabled tests/test_llama_cpp_freshness.py::test_check_prebuilt_freshness_skips_github_when_update_checks_disabled tests/test_llama_cpp_update.py::test_status_source_build_skips_probe_when_update_checks_disabled tests/test_llama_cpp_update.py::test_start_update_refuses_when_update_checks_disabled
+
