@@ -1,0 +1,75 @@
+name: "PR 11148 typer floor repro"
+on:
+  push:
+    branches: [pr11148-ab-pos, pr11148-ab-neg]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr11148-repro-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pip-install-keeps-old-typer:
+    name: "pip install . over typer 0.15.1 (${{ matrix.os }}, py${{ matrix.python }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: "3.9"}
+          - {os: ubuntu-latest, python: "3.12"}
+          - {os: macos-14, python: "3.12"}
+          - {os: windows-latest, python: "3.12"}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Declared typer floor
+        run: grep -n '"typer>=' pyproject.toml
+      - name: Pre-install typer 0.15.1 (the user's existing env)
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q "typer==0.15.1"
+          python -c "import typer; print('typer before', typer.__version__)"
+      - name: pip install unsloth (this checkout)
+        run: python -m pip install -q .
+      - name: Run CLI
+        run: |
+          python -c "import typer; print('typer after', typer.__version__)"
+          set +e
+          fail=0
+          for args in "--help" "start --help" "train --help"; do
+            out=$(unsloth $args 2>&1); rc=$?
+            if [ $rc -eq 0 ]; then echo "PASS: unsloth $args (rc=0)"
+            else
+              echo "FAIL: unsloth $args (rc=$rc)"
+              echo "$out" | grep -m1 -E "Type not yet supported|Error" || echo "$out" | tail -5
+              fail=1
+            fi
+          done
+          exit $fail
+  no-torch-runtime-requirements:
+    name: "no-torch-runtime.txt --no-deps over typer 0.15.1"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install typer line with --no-deps over 0.15.1
+        run: |
+          python -m pip install -q "typer==0.15.1"
+          grep -E '^(typer|click|rich|shellingham|annotated-doc|markdown-it-py|mdurl|pygments)[<>=]' studio/backend/requirements/no-torch-runtime.txt > cli-reqs.txt
+          echo "spec:"; cat cli-reqs.txt
+          python -m pip install -q --no-deps -r cli-reqs.txt
+          python - <<'PY'
+          import typer
+          v = tuple(int(x) for x in typer.__version__.split(".")[:2])
+          print("typer after", typer.__version__)
+          assert v >= (0, 19), f"FAIL: typer {typer.__version__} lacks Literal support"
+          print("PASS: typer supports Literal")
+          PY
