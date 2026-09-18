@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
@@ -41,8 +42,7 @@ jobs:
           cat before.txt
           test "$result" = 1
           grep -F "8 failed, 18 passed" before.txt
-          printf 'PASS: pre-fix code failed exactly eight role-mapping assertions
-          '
+          echo 'PASS: pre-fix code failed exactly eight role-mapping assertions'
 
       - name: "After: same suite with PR implementation"
         shell: bash
