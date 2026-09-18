@@ -209,7 +209,6 @@ def _resolved_model_snapshot_file(snapshot: Path, path: Path) -> Optional[Path]:
     if not resolved.is_file() or not (
         resolved.is_relative_to(snapshot)
         or resolved.is_relative_to(repo_dir / "blobs")
-        or resolved.is_relative_to(repo_dir.parent / "blobs")
     ):
         return None
     try:
