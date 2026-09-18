@@ -23,8 +23,8 @@ jobs:
           - side: after
             ref: 78f8e81715d1f302c1a3efcbc92fa80403bbb23d
     env:
-      UNSLOTH_STUDIO_HOME: ${{ runner.temp }}/studio-${{ matrix.side }}
-      HF_HOME: ${{ runner.temp }}/hf-${{ matrix.side }}
+      UNSLOTH_STUDIO_HOME: ${{ github.workspace }}/runtime/studio-${{ matrix.side }}
+      HF_HOME: ${{ github.workspace }}/runtime/hf-${{ matrix.side }}
       HF_ENDPOINT: https://huggingface.co
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
