@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026-present the Unsloth AI Inc. team. All rights reserved.
+name: PR 11289 desktop auth A-B evidence
+on:
+  push:
+    branches: [pr-11289-review-20260918-11289-ci]
+    paths:
+      - '.github/scripts/pr11289-desktop-evidence.py'
+      - '.github/workflows/pr11289-desktop-evidence.yml'
+permissions:
+  contents: read
+jobs:
+  desktop:
+    name: Desktop auth ${{ matrix.side }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - side: before
+            ref: 14b40739a0100bccdd7f11b8e731a82725abf275
+          - side: after
+            ref: ed270ba85f3b625b9cc0c8a1656de189409bbdd9
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: unslothai/unsloth
+          ref: ${{ matrix.ref }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: source/studio/src-tauri -> target
+          save-if: false
+      - name: Native desktop and evidence dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libwebkit2gtk-4.1-dev webkit2gtk-driver libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf xvfb
+          python3 -m pip install selenium==4.49.0
+          cargo install tauri-driver --locked
+      - name: Audit and build exact source
+        run: |
+          cd source
+          python3 scripts/lockfile_supply_chain_audit.py
+          npm ci --prefix studio/frontend --no-audit --no-fund
+          npm run build --prefix studio/frontend
+          cargo build --manifest-path studio/src-tauri/Cargo.toml --locked
+      - name: Changed-path Rust regression tests
+        if: matrix.side == 'after'
+        run: cargo test --manifest-path source/studio/src-tauri/Cargo.toml --locked desktop_auth::tests -- --nocapture
+      - name: Real desktop delayed login assertion
+        run: xvfb-run -a -s '-screen 0 1280x900x24' python3 .github/scripts/pr11289-desktop-evidence.py '${{ matrix.side }}' source/studio/src-tauri/target/debug/unsloth-studio '${{ matrix.ref }}'
+      - name: Upload desktop evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr11289-desktop-${{ matrix.side }}
+          path: evidence
+          retention-days: 7
