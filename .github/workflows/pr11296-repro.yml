@@ -1,0 +1,55 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11296 chat search A-B proof"
+
+on:
+  push:
+    branches:
+      - "evidence-pr11296-20260918"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "22"
+
+      - name: "Install pinned frontend dependencies without lifecycle scripts"
+        shell: bash
+        run: |
+          npm ci --prefix studio/frontend --ignore-scripts --no-audit --no-fund
+
+      - name: "Positive: PR head passes all chat search regressions"
+        shell: bash
+        run: |
+          cd studio/frontend
+          node --experimental-strip-types --test tests/chat-search-index-hint.test.ts tests/chat-search-compact-list.test.ts
+
+      - name: "Negative: identical tests detect the merge-base implementation"
+        shell: bash
+        run: |
+          git fetch --depth=1 https://github.com/unslothai/unsloth.git ef00d4946731d2cb9bed2982f1a24346843e7e19
+          git show ef00d4946731d2cb9bed2982f1a24346843e7e19:studio/frontend/src/features/chat/hooks/use-chat-search-index.ts > studio/frontend/src/features/chat/hooks/use-chat-search-index.ts
+          cd studio/frontend
+          set +e
+          node --experimental-strip-types --test tests/chat-search-index-hint.test.ts tests/chat-search-compact-list.test.ts > negative.log 2>&1
+          result=$?
+          set -e
+          cat negative.log
+          test "$result" -ne 0
+          grep -F 'not ok 28 - a chat past the message bound is still found by its title' negative.log
+          grep -F '# fail 1' negative.log
+          grep -F '200 !== 201' negative.log
+          echo 'PASS: baseline fails only the intended 201st-chat assertion'
+
