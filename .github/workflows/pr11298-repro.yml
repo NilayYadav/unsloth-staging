@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026-present the Unsloth AI Inc. team. All rights reserved.
+# Disposable reproduction workflow.
+
+name: "PR 11298 Markdown branch reproduction"
+
+on:
+  push:
+    branches:
+      - "pr-11298-review-20260919-11298-ci"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.13"
+
+      - name: "Fetch pinned source and merge base"
+        shell: bash
+        run: |
+          git fetch --no-tags https://github.com/unslothai/unsloth.git d8616852745a3a63931e8304f622660a0657d5bb ef00d4946731d2cb9bed2982f1a24346843e7e19
+          git worktree add --detach ../pr11298-before ef00d4946731d2cb9bed2982f1a24346843e7e19
+          git worktree add --detach ../pr11298-after d8616852745a3a63931e8304f622660a0657d5bb
+          mkdir -p evidence
+
+      - name: "Run identical regression tests before and after"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../pr11298-after/studio/frontend/tests/markdown-export-branches.test.ts ../pr11298-before/studio/frontend/tests/
+          for side in before after; do
+            (cd ../pr11298-$side/studio/frontend && npm ci --ignore-scripts --no-audit --no-fund)
+            set +e
+            (cd ../pr11298-$side/studio/frontend && node --experimental-strip-types --test tests/markdown-export-branches.test.ts) > evidence/$side-unit.log 2>&1
+            result=$?
+            set -e
+            cat evidence/$side-unit.log
+            if [ "$side" = before ]; then
+              test "$result" -ne 0
+              grep -q '# fail 3' evidence/$side-unit.log
+              grep -q 'ERR_ASSERTION' evidence/$side-unit.log
+            else
+              test "$result" -eq 0
+              grep -q '# pass 3' evidence/$side-unit.log
+            fi
+          done
+
+      - name: "Install browser"
+        shell: bash
+        run: |
+          python -m pip install playwright==1.58.0 pillow
+          python -m playwright install --with-deps chromium
+
+      - name: "Measure real branch picker and Markdown actions"
+        shell: bash
+        run: |
+          set -euo pipefail
+          port=13298
+          for side in before after; do
+            frontend="../pr11298-$side/studio/frontend"
+            cp tests/pr11298_evidence/browser-fixture.tsx "$frontend/review-evidence-main.tsx"
+            printf '%s' '<!doctype html><html><head><meta charset="utf-8"><title>PR 11298 browser evidence</title></head><body><div id="root"></div><script type="module" src="/review-evidence-main.tsx"></script></body></html>' > "$frontend/review-evidence.html"
+            (cd "$frontend" && npm run dev -- --host 127.0.0.1 --port "$port" --strictPort) > evidence/$side-vite.log 2>&1 &
+            server_pid=$!
+            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+            for n in $(seq 1 60); do if curl --silent --fail "http://127.0.0.1:$port/review-evidence.html" >/dev/null; then break; fi; sleep 1; done
+            python tests/pr11298_evidence/browser-probe.py --url "http://127.0.0.1:$port" --side "$side" --out "evidence/$side"
+            kill "$server_pid" 2>/dev/null || true
+            port=$((port + 1))
+          done
+          python tests/pr11298_evidence/compose.py evidence
+
+      - name: Upload sanitized action evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr11298-markdown-branch-evidence
+          path: evidence/
+          retention-days: 14
