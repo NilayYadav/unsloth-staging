@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026-present the Unsloth AI Inc. team. All rights reserved.
+name: PR 11291 focused download evidence
+on:
+  push:
+    branches: [pr-11291-focused-20260918]
+permissions:
+  contents: read
+jobs:
+  real-download:
+    name: Real download ${{ matrix.side }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+        side: [before, after]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python -m pip install filelock
+      - name: Exercise pinned downloader and installer pipeline
+        shell: bash
+        env:
+          SIDE: ${{ matrix.side }}
+        run: |
+          if [ "$SIDE" = before ]; then
+            PR_REF=14b40739a0100bccdd7f11b8e731a82725abf275
+          else
+            PR_REF=a1b398e7d6024b43d2db4632327599c15f401b0c
+          fi
+          git worktree add --detach "$RUNNER_TEMP/tested" "$PR_REF"
+          python .github/scripts/pr-11291-download-evidence.py --repo "$RUNNER_TEMP/tested" --out evidence --label "$SIDE" --download-only --assert-progress
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: download-${{ matrix.os }}-${{ matrix.side }}
+          path: evidence/download.json
+  windows:
+    name: Native PowerShell 5.1 and 7
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: a1b398e7d6024b43d2db4632327599c15f401b0c
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest filelock
+      - name: Assert both shells are available
+        run: python -c "import shutil; assert shutil.which('powershell') and shutil.which('pwsh')"
+      - name: Real downloads and quiet/verbose/error propagation
+        run: python -m pytest tests/python/test_windows_setup_download_progress.py tests/studio/install/test_install_node_prebuilt_logic.py -v --junitxml=results.xml
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: windows-results
+          path: results.xml
