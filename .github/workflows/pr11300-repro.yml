@@ -48,7 +48,9 @@ jobs:
         shell: bash
         run: |
           python -m pip install uv
-          uv pip install --system -r target/studio/backend/requirements/studio.txt -r target/studio/backend/requirements/single-env/data-designer.txt pytest python-multipart
+          uv pip install --system -r target/studio/backend/requirements/studio.txt -r target/studio/backend/requirements/single-env/data-designer-deps.txt pytest python-multipart
+          uv pip install --system --no-deps -r target/studio/backend/requirements/single-env/data-designer.txt
+          python target/studio/backend/requirements/single-env/patch_metadata.py
 
       - name: "Real HF endpoint validation and two-row generation"
         shell: bash
