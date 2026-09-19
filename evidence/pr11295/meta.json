@@ -1,0 +1,213 @@
+{
+  "pr": "https://github.com/unslothai/unsloth/pull/11295",
+  "expect": "After forking a chat and deleting its parent, the fork retains an attached document and its citation opens; before, the attachment is absent and its citation cannot open.",
+  "scene": "forked_document_parent_deletion",
+  "limitations": [
+    "Scoped FastAPI app mounts the unmodified chat_history and RAG routers, not full Studio launcher.",
+    "Auth dependency fixture and fixed hash-based embeddings; no real model or provider execution.",
+    "Parent chat and assistant citation reply are seeded via real API; fork/delete also use real API. Browser opens the actual fork and citation UI.",
+    "Unrelated startup endpoints outside this scene may return 404; captured in browser-log.json."
+  ],
+  "before": {
+    "sha": "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+    "facts": {
+      "fork_document_count": 0,
+      "fork_filenames": [],
+      "source_deleted": true,
+      "citation_remapped": false,
+      "citation_preview_status": 404,
+      "fork_warning": null,
+      "messages_count": 2,
+      "lexical_hit_count": 0,
+      "lexical_only_fork_documents": false,
+      "dense_hit_count": 0,
+      "dense_only_fork_documents": false
+    },
+    "page_errors": [],
+    "http_errors": [
+      {
+        "status": 404,
+        "url": "/api/providers/registry?include_hidden=true"
+      },
+      {
+        "status": 404,
+        "url": "/api/providers/"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/datasets/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/export/status"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/hugging-face-token"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/personalization"
+      },
+      {
+        "status": 404,
+        "url": "/api/inference/monitor"
+      },
+      {
+        "status": 404,
+        "url": "/api/skills"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/hidden-models"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/chat-preferences/migrate"
+      },
+      {
+        "status": 404,
+        "url": "/api/inference/chat-runs/active?threadId=evidence-fork"
+      },
+      {
+        "status": 404,
+        "url": "/api/chat/research-runs/active?threadId=evidence-fork"
+      },
+      {
+        "status": 404,
+        "url": "/api/llama/update-status?force_refresh=true"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/datasets/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/rag/documents/b3219115-1bce-4c6f-b13e-b46815b7ba2c/preview-target?chunk_id=b3219115-1bce-4c6f-b13e-b46815b7ba2c%3A0"
+      }
+    ],
+    "browser": "153.0.8010.12",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "files_bar_chips": 0,
+    "citation_dialog": "project-notes.txt\nClose\nCould not open this document (Document not found)."
+  },
+  "after": {
+    "sha": "2a813e6d8f065241d3bf5a14fd50a4527b9dd99d",
+    "facts": {
+      "fork_document_count": 1,
+      "fork_filenames": [
+        "project-notes.txt"
+      ],
+      "source_deleted": true,
+      "citation_remapped": true,
+      "citation_preview_status": 200,
+      "fork_warning": null,
+      "messages_count": 2,
+      "lexical_hit_count": 1,
+      "lexical_only_fork_documents": true,
+      "dense_hit_count": 1,
+      "dense_only_fork_documents": true
+    },
+    "page_errors": [],
+    "http_errors": [
+      {
+        "status": 404,
+        "url": "/api/providers/registry?include_hidden=true"
+      },
+      {
+        "status": 404,
+        "url": "/api/providers/"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/datasets/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/export/status"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/hugging-face-token"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/personalization"
+      },
+      {
+        "status": 404,
+        "url": "/api/inference/monitor"
+      },
+      {
+        "status": 404,
+        "url": "/api/skills"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/hidden-models"
+      },
+      {
+        "status": 404,
+        "url": "/api/settings/chat-preferences/migrate"
+      },
+      {
+        "status": 404,
+        "url": "/api/inference/chat-runs/active?threadId=evidence-fork"
+      },
+      {
+        "status": 404,
+        "url": "/api/chat/research-runs/active?threadId=evidence-fork"
+      },
+      {
+        "status": 404,
+        "url": "/api/llama/update-status?force_refresh=true"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/datasets/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/studio/update-status"
+      },
+      {
+        "status": 404,
+        "url": "/api/export/status"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/active-downloads"
+      },
+      {
+        "status": 404,
+        "url": "/api/hub/datasets/active-downloads"
+      }
+    ],
+    "browser": "153.0.8010.12",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "files_bar_chips": 1,
+    "citation_dialog": "project-notes.txt\nClose\n\nProject lighthouse\n\nThe lighthouse release uses the cobalt protocol. The launch date is September 24.\n\nThe release checklist requires a verified backup, a deployment rehearsal, and an owner for rollback."
+  }
+}

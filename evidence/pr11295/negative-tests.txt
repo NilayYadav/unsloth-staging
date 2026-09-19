@@ -1,0 +1,35 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_forking_a_thread_copies_its_uploaded_documents ______________
+tests/test_rag_thread_document_cleanup.py:219: in test_forking_a_thread_copies_its_uploaded_documents
+    assert [(d["filename"], d["status"]) for d in documents] == [("source.txt", "completed")]
+E   AssertionError: assert [] == [('source.txt', 'completed')]
+E     
+E     Right contains one more item: ('source.txt', 'completed')
+E     Use -v to get more diff
+_________ test_a_forks_documents_are_independent_of_the_source_thread __________
+tests/test_rag_thread_document_cleanup.py:236: in test_a_forks_documents_are_independent_of_the_source_thread
+    copy = _thread_documents(client, "fork")[0]["id"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   IndexError: list index out of range
+_____________ test_a_fork_survives_documents_that_cannot_be_copied _____________
+tests/test_rag_thread_document_cleanup.py:266: in test_a_fork_survives_documents_that_cannot_be_copied
+    assert "not copied" in (warning or "")
+E   AssertionError: assert 'not copied' in ((None or ''))
+____________ test_a_forks_copied_messages_cite_the_forks_documents _____________
+tests/test_rag_thread_document_cleanup.py:403: in test_a_forks_copied_messages_cite_the_forks_documents
+    copy = _thread_documents(client, "fork")[0]["id"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   IndexError: list index out of range
+=============================== warnings summary ===============================
+../../../../../usr/local/lib/python3.12/site-packages/starlette/testclient.py:53
+  /usr/local/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_rag_thread_document_cleanup.py::test_forking_a_thread_copies_its_uploaded_documents
+FAILED tests/test_rag_thread_document_cleanup.py::test_a_forks_documents_are_independent_of_the_source_thread
+FAILED tests/test_rag_thread_document_cleanup.py::test_a_fork_survives_documents_that_cannot_be_copied
+FAILED tests/test_rag_thread_document_cleanup.py::test_a_forks_copied_messages_cite_the_forks_documents
+4 failed, 10 deselected, 1 warning in 2.78s
