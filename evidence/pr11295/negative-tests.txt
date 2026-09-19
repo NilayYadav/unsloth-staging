@@ -17,7 +17,7 @@ tests/test_rag_thread_document_cleanup.py:266: in test_a_fork_survives_documents
     assert "not copied" in (warning or "")
 E   AssertionError: assert 'not copied' in ((None or ''))
 ____________ test_a_forks_copied_messages_cite_the_forks_documents _____________
-tests/test_rag_thread_document_cleanup.py:423: in test_a_forks_copied_messages_cite_the_forks_documents
+tests/test_rag_thread_document_cleanup.py:442: in test_a_forks_copied_messages_cite_the_forks_documents
     copy = _thread_documents(client, "fork")[0]["id"]
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 E   IndexError: list index out of range
@@ -32,4 +32,4 @@ FAILED tests/test_rag_thread_document_cleanup.py::test_forking_a_thread_copies_i
 FAILED tests/test_rag_thread_document_cleanup.py::test_a_forks_documents_are_independent_of_the_source_thread
 FAILED tests/test_rag_thread_document_cleanup.py::test_a_fork_survives_documents_that_cannot_be_copied
 FAILED tests/test_rag_thread_document_cleanup.py::test_a_forks_copied_messages_cite_the_forks_documents
-4 failed, 11 deselected, 1 warning in 3.66s
+4 failed, 12 deselected, 1 warning in 5.31s
