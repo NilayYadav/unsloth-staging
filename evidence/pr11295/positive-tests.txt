@@ -1,6 +1,6 @@
 ........................................................................ [ 37%]
 ........................................................................ [ 75%]
-.............................................s                           [100%]
+..............................................s                          [100%]
 =============================== warnings summary ===============================
 ../../../usr/local/lib/python3.12/site-packages/starlette/testclient.py:53
   /usr/local/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
@@ -9,4 +9,4 @@
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 SKIPPED [1] tests/test_rag_ingestion.py:568: set RAG_REAL_EMBEDDER=1 to run the real sentence-transformers test
-189 passed, 1 skipped, 1 warning in 17.86s
+190 passed, 1 skipped, 1 warning in 23.12s
