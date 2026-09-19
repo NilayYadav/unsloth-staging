@@ -1,0 +1,165 @@
+{
+  "pr": 11298,
+  "base": "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+  "head": "d8616852745a3a63931e8304f622660a0657d5bb",
+  "expect": "Selecting Apples exports and uploads one assistant reply after the fix; before also includes rejected Pears. CSV retains both.",
+  "limitations": "Real Thread, branch picker and export functions in a Vite browser fixture. History and upload endpoints seeded; backend ingestion not exercised.",
+  "before": {
+    "uploads": [
+      {
+        "filename": "Fruit reply.md",
+        "body": "## User\n\nName one fruit.\n\n## Assistant\n\nPears.\n\n## Assistant\n\nApples.\n"
+      }
+    ],
+    "requests": [
+      {
+        "url": "/api/skills",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/projects?include_archived=false",
+        "method": "GET"
+      },
+      {
+        "url": "/api/rag/knowledge-bases",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/__LOCALID_W7slmbr/forks",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/rag/projects/evidence-project/documents",
+        "method": "POST"
+      }
+    ],
+    "copied": "## User\n\nName one fruit.\n\n## Assistant\n\nPears.\n\n## Assistant\n\nApples.\n",
+    "side": "before",
+    "branch": [
+      "u1",
+      "a1"
+    ],
+    "download": "## User\n\nName one fruit.\n\n## Assistant\n\nPears.\n\n## Assistant\n\nApples.\n",
+    "source": "## User\n\nName one fruit.\n\n## Assistant\n\nPears.\n\n## Assistant\n\nApples.\n",
+    "csv": "role,content\n\"user\",\"Name one fruit.\"\n\"assistant\",\"Pears.\"\n\"assistant\",\"Apples.\"",
+    "markdown_assistant_sections": 2,
+    "csv_assistant_rows": 2,
+    "browser": "145.0.7632.6",
+    "viewport": {
+      "width": 1360,
+      "height": 850
+    },
+    "errors": []
+  },
+  "after": {
+    "uploads": [
+      {
+        "filename": "Fruit reply.md",
+        "body": "## User\n\nName one fruit.\n\n## Assistant\n\nApples.\n"
+      }
+    ],
+    "requests": [
+      {
+        "url": "/api/skills",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/projects?include_archived=false",
+        "method": "GET"
+      },
+      {
+        "url": "/api/rag/knowledge-bases",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/__LOCALID_0xIzlSh/forks",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread",
+        "method": "GET"
+      },
+      {
+        "url": "/api/chat/threads/evidence-thread/messages",
+        "method": "GET"
+      },
+      {
+        "url": "/api/rag/projects/evidence-project/documents",
+        "method": "POST"
+      }
+    ],
+    "copied": "## User\n\nName one fruit.\n\n## Assistant\n\nApples.\n",
+    "side": "after",
+    "branch": [
+      "u1",
+      "a1"
+    ],
+    "download": "## User\n\nName one fruit.\n\n## Assistant\n\nApples.\n",
+    "source": "## User\n\nName one fruit.\n\n## Assistant\n\nApples.\n",
+    "csv": "role,content\n\"user\",\"Name one fruit.\"\n\"assistant\",\"Pears.\"\n\"assistant\",\"Apples.\"",
+    "markdown_assistant_sections": 1,
+    "csv_assistant_rows": 2,
+    "browser": "145.0.7632.6",
+    "viewport": {
+      "width": 1360,
+      "height": 850
+    },
+    "errors": []
+  }
+}
