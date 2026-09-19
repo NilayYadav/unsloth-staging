@@ -1,0 +1,89 @@
+{
+  "base": "768d644036a948441ba80b626c9e747c1fecfbae",
+  "head": "7bf15c0fa42c78d8b6f1c547c7ccc84331e7ffd4",
+  "expect": "BEFORE shows the hf.endpoint string validation error; AFTER shows Ready to run for the identical HF seed recipe.",
+  "environment": "Modal Linux CPU; real Data Designer and public HF dataset; independently built frontends; isolated homes, caches, ports",
+  "sides": {
+    "before": {
+      "ref": "768d644036a948441ba80b626c9e747c1fecfbae",
+      "port": 19001,
+      "facts": {
+        "dataset": "lhoestq/demo1",
+        "viewport": [
+          1440,
+          1000
+        ],
+        "expect": "BEFORE shows the hf.endpoint string validation error; AFTER shows Ready to run for the identical HF seed recipe.",
+        "validation": {
+          "valid": false,
+          "errors": [
+            {
+              "message": "1 validation error for BuilderConfig\ndata_designer.seed_config.source.hf.endpoint\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type",
+              "path": null,
+              "code": null
+            }
+          ],
+          "raw_detail": "1 validation error for BuilderConfig\ndata_designer.seed_config.source.hf.endpoint\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type"
+        },
+        "submitted_endpoint": null,
+        "http_status": 200,
+        "visible_result": "Fix these issues first"
+      }
+    },
+    "after": {
+      "ref": "7bf15c0fa42c78d8b6f1c547c7ccc84331e7ffd4",
+      "port": 19002,
+      "facts": {
+        "dataset": "lhoestq/demo1",
+        "viewport": [
+          1440,
+          1000
+        ],
+        "expect": "BEFORE shows the hf.endpoint string validation error; AFTER shows Ready to run for the identical HF seed recipe.",
+        "validation": {
+          "valid": true,
+          "errors": [],
+          "raw_detail": null
+        },
+        "submitted_endpoint": null,
+        "http_status": 200,
+        "visible_result": "Ready to run"
+      },
+      "probe_exit": 0,
+      "probe_log": "VALIDATION_FACTS={\"valid\": true, \"errors\": [], \"endpoint_after_validation\": \"https://huggingface.co\"}\nPASS real HF seed: valid=true; generated_rows=2; result=verified\n[22:35:41] [INFO] \u2705 Validation passed\n[22:35:41] [INFO] \ud83d\udcf8 Preview generation in progress\n[22:35:42] [INFO] \u2705 Validation passed\n[22:35:42] [INFO] \u26d3\ufe0f Sorting column configs into a Directed Acyclic Graph\n[22:35:43] [INFO] \ud83c\udf31 Sampling 2 records from seed dataset\n[22:35:43] [INFO]   |-- seed dataset size: 5 records\n[22:35:43] [INFO]   |-- sampling strategy: ordered\n[22:35:43] [INFO] \ud83e\udde9 Generating column `result` from expression\n[22:35:43] [INFO] \ud83d\udcca Model usage summary:\n[22:35:43] [INFO]   |-- no model usage recorded\n[22:35:43] [INFO] \ud83d\udcd0 Measuring dataset column statistics:\n[22:35:43] [INFO]   |-- \ud83e\udde9 column: 'result'\n[22:35:43] [INFO] \ud83c\udf7e Preview complete!\n",
+      "tests_exit": 0,
+      "tests_log": ".....................                                                    [100%]\n21 passed in 6.31s\n"
+    }
+  },
+  "fact_delta": {
+    "validation": [
+      {
+        "valid": false,
+        "errors": [
+          {
+            "message": "1 validation error for BuilderConfig\ndata_designer.seed_config.source.hf.endpoint\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type",
+            "path": null,
+            "code": null
+          }
+        ],
+        "raw_detail": "1 validation error for BuilderConfig\ndata_designer.seed_config.source.hf.endpoint\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type"
+      },
+      {
+        "valid": true,
+        "errors": [],
+        "raw_detail": null
+      }
+    ],
+    "visible_result": [
+      "Fix these issues first",
+      "Ready to run"
+    ]
+  },
+  "same_image_bytes": false,
+  "composite_crop": [
+    510,
+    190,
+    1210,
+    810
+  ]
+}
