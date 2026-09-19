@@ -1,0 +1,63 @@
+{
+  "pr": 11296,
+  "refs": {
+    "BEFORE": "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+    "AFTER": "2e8100b1d30f9927be7b0f0b942c2c1b22b6c90c"
+  },
+  "expect": "The oldest of 201 chats has no search result BEFORE and one title result AFTER; message fetches remain bounded to 200.",
+  "scene": "older_chat_title_search",
+  "facts": {
+    "BEFORE": {
+      "seeded_threads": 201,
+      "oldest_title": "Zanzibar ledger",
+      "oldest_thread": "evidence-thread-200",
+      "batch_sizes": [
+        200
+      ],
+      "batch_contains_oldest": [
+        false
+      ],
+      "oldest_title_results": 0,
+      "empty_match_visible": true,
+      "opened_oldest_message": false,
+      "browser_errors": [],
+      "browser_version": "153.0.8010.12",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    "AFTER": {
+      "seeded_threads": 201,
+      "oldest_title": "Zanzibar ledger",
+      "oldest_thread": "evidence-thread-200",
+      "batch_sizes": [
+        200
+      ],
+      "batch_contains_oldest": [
+        false
+      ],
+      "oldest_title_results": 1,
+      "empty_match_visible": false,
+      "opened_oldest_message": true,
+      "browser_errors": [],
+      "browser_version": "153.0.8010.12",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    }
+  },
+  "builds": {
+    "BEFORE": {
+      "sha": "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+      "dist_index_sha256": "75753b609f7cfe53337f2417222e6c9f7dfd37ff3eb27f9a676d28f2d7f1dc4d"
+    },
+    "AFTER": {
+      "sha": "2e8100b1d30f9927be7b0f0b942c2c1b22b6c90c",
+      "dist_index_sha256": "bffe7299a782e76cc4166893ac7aefc665ea1bda251769b3cc8db97583f7526a"
+    }
+  },
+  "dependency_note": "Separate exact-SHA frontend builds and backend source worktrees; backend uses the same preinstalled Python dependencies. Separate homes, ports, auth, and caches.",
+  "composite": "before-after.png"
+}
