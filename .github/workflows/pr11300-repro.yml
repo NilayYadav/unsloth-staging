@@ -19,9 +19,9 @@ jobs:
       matrix:
         include:
           - side: before
-            ref: ef00d4946731d2cb9bed2982f1a24346843e7e19
+            ref: 768d644036a948441ba80b626c9e747c1fecfbae
           - side: after
-            ref: 78f8e81715d1f302c1a3efcbc92fa80403bbb23d
+            ref: 7bf15c0fa42c78d8b6f1c547c7ccc84331e7ffd4
     env:
       UNSLOTH_STUDIO_HOME: ${{ github.workspace }}/runtime/studio-${{ matrix.side }}
       HF_HOME: ${{ github.workspace }}/runtime/hf-${{ matrix.side }}
