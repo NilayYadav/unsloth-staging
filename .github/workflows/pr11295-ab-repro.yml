@@ -1,0 +1,76 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11295 fork-document fixes A/B"
+
+on:
+  push:
+    branches:
+      - "pr-11295-pr11295-ab-20260919221652-ci"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Full history for the A/B checkout"
+        shell: bash
+        run: |
+          git fetch --unshallow origin || git fetch --depth=200 origin
+          git cat-file -e 460fef0a0410840401a2cda664f7b59a62eb2499^{commit}
+          echo "pre-fix commit present"
+
+      - name: "Install backend test dependencies (CPU only)"
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 mammoth unpdf requests 'numpy<3' pytest pytest-asyncio pytest-xdist pytest-timeout httpx soundfile librosa
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch>=2.4,<2.11' 'torchaudio<2.11'
+          pip install 'transformers>=4.51,<5.5'
+          pip install "$(grep -m1 -E '^peft==' studio/backend/requirements/extras-no-deps.txt)"
+          pip install torchao
+
+      - name: "A/B negative -- PR code before the review fixes"
+        shell: bash
+        run: |
+          set +e
+          git checkout 460fef0a0410840401a2cda664f7b59a62eb2499 -- studio/backend/core/rag/conversation_archive.py studio/backend/routes/chat_history.py
+          git --no-pager diff --stat HEAD
+          cd studio/backend
+          python -m pytest tests/test_rag_thread_document_cleanup.py -p no:randomly -q --timeout=300 > /tmp/negative.log 2>&1
+          status=$?
+          cd - > /dev/null
+          cat /tmp/negative.log
+          set -e
+          if [ "$status" -eq 0 ]; then echo "::error::NEGATIVE branch passed; the defects do not reproduce"; exit 1; fi
+          for t in test_a_fork_warns_when_existing_documents_cannot_load_without_vec test_a_fork_warns_when_an_upload_is_still_pending test_a_fork_copies_files_before_taking_the_rag_write_lock; do
+            grep -q "FAILED tests/test_rag_thread_document_cleanup.py::$t" /tmp/negative.log || { echo "::error::NEGATIVE: $t did not fail as expected"; exit 1; }
+          done
+          grep -c '^FAILED' /tmp/negative.log
+          test "$(grep -c '^FAILED' /tmp/negative.log)" -eq 3
+          echo 'NEGATIVE OK: exactly the three defects failed at their own assertions'
+
+      - name: "A/B positive -- PR code with the review fixes"
+        shell: bash
+        run: |
+          git checkout HEAD -- studio/backend/core/rag/conversation_archive.py studio/backend/routes/chat_history.py
+          git --no-pager diff --stat HEAD
+          cd studio/backend
+          python -m pytest tests/test_rag_thread_document_cleanup.py -p no:randomly -q --timeout=300 | tee /tmp/positive.log
+          cd - > /dev/null
+          grep -q '13 passed' /tmp/positive.log
+          echo 'POSITIVE OK: the same workflow, environment and tests all pass with the fixes'
+
