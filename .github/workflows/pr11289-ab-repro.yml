@@ -1,0 +1,107 @@
+name: PR 11289 desktop auth A-B repro
+
+on:
+  push:
+    branches:
+      - pr-11289-pr11289-abrepro-20260919221632-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr11289-ab-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repro:
+    name: desktop_auth ${{ matrix.side }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        side: [before, after]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Linux native deps for Tauri / WebKit2GTK
+        timeout-minutes: 15
+        env:
+          RETRY_ATTEMPTS: '2'
+          RETRY_ATTEMPT_TIMEOUT: '360'
+        run: |
+          bash .github/scripts/retry-with-apt-lock.sh sudo sh -c \
+            'apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf xvfb || { apt-get update && apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf xvfb; }'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable @ 2026-03-27
+
+      - name: Lockfile supply-chain audit (pre-install scan)
+        run: python3 scripts/lockfile_supply_chain_audit.py
+
+      - name: Frontend build (npm ci, vite)
+        working-directory: studio/frontend
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+          test -f dist/index.html
+
+      # The only difference between the two sides: `before` reverts the PR's
+      # production change (5s timeout, no connectivity retry) and keeps the
+      # PR's tests untouched.
+      - name: Revert the PR implementation (before side only)
+        if: matrix.side == 'before'
+        run: python3 .github/scripts/pr11289-revert-fix.py
+
+      - name: Show the implementation under test
+        run: sed -n '195,235p' studio/src-tauri/src/desktop_auth.rs
+
+      - name: Run the PR's desktop_auth tests
+        id: run
+        working-directory: studio/src-tauri
+        continue-on-error: true
+        run: |
+          set +e
+          cargo test --no-fail-fast desktop_auth::tests -- --test-threads=4 2>&1 | tee "$RUNNER_TEMP/test.log"
+          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Assert the intended A-B outcome
+        env:
+          SIDE: ${{ matrix.side }}
+          STATUS: ${{ steps.run.outputs.status }}
+        run: |
+          log="$RUNNER_TEMP/test.log"
+          slow=desktop_login_waits_for_slow_startup
+          retry=desktop_login_retries_a_timeout_on_the_same_port
+          stops=desktop_login_stops_after_two_timeouts
+          guard=desktop_login_does_not_retry_rejected_or_malformed_responses
+          failed() { grep -qE "^ *desktop_auth::tests::$1\$" "$log"; }
+          if [ "$SIDE" = after ]; then
+            [ "$STATUS" = 0 ] || { echo "::error::after side must pass; cargo exit $STATUS"; exit 1; }
+            for t in "$slow" "$retry" "$stops" "$guard"; do
+              grep -q "test desktop_auth::tests::$t ... ok" "$log" \
+                || { echo "::error::after side did not report $t as ok"; exit 1; }
+            done
+            echo "PASS after: all four desktop_auth login tests pass with the fix"
+          else
+            [ "$STATUS" != 0 ] || { echo "::error::before side unexpectedly passed"; exit 1; }
+            for t in "$slow" "$retry" "$stops"; do
+              failed "$t" || { echo "::error::before side did not fail $t at the intended assertion"; exit 1; }
+            done
+            grep -q "test desktop_auth::tests::$guard ... ok" "$log" \
+              || { echo "::error::before side must still pass the no-retry guard test"; exit 1; }
+            echo "PASS before: the three slow-startup tests fail without the fix; the guard test still passes"
+          fi
+
+      - name: Upload the test log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v5
+        with:
+          name: pr11289-${{ matrix.side }}-test-log
+          path: ${{ runner.temp }}/test.log
