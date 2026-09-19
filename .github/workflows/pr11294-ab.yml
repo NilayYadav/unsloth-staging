@@ -1,0 +1,47 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11294 A/B (after)"
+
+on:
+  push:
+    branches:
+      - "pr11294-ab-after-20260919221943"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Install focused dependencies"
+        shell: bash
+        run: |
+          python -m pip install --quiet pytest fastapi python-multipart structlog huggingface-hub pyjwt pwdlib bcrypt psutil httpx cryptography datasets pandas data-designer==0.5.4
+
+      - name: "Which seed implementation is under test"
+        shell: bash
+        run: |
+          git log --oneline -1 -- studio/backend/routes/data_recipe/seed.py
+
+      - name: "Public GSM8K inspect + real Data Designer reader (CHOSEN_SPLIT_SUBSET_ONLY)"
+        shell: bash
+        run: |
+          mkdir -p evidence && HF_HUB_DISABLE_IMPLICIT_TOKEN=1 python scripts/pr11294_repro.py --output evidence/real-reader.json
+
+      - name: "Focused seed suite"
+        shell: bash
+        run: |
+          python -m pytest studio/backend/tests/test_data_recipe_seed.py -q
+
