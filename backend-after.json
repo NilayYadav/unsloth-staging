@@ -1,0 +1,437 @@
+{
+  "sha": "6d62eb4cf9066a0ec78410a31b69d0a5c9208462",
+  "scenarios": {
+    "cuda_resumed": {
+      "kind": "cuda",
+      "start": 900,
+      "step": 910,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "progress",
+          "step": 0,
+          "epoch": 0,
+          "loss": null,
+          "learning_rate": null,
+          "total_steps": 1000,
+          "elapsed_seconds": null,
+          "eta_seconds": null,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": null,
+          "eval_loss": null,
+          "status_message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 910,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 910,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 91.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "cuda_fresh": {
+      "kind": "cuda",
+      "start": 0,
+      "step": 100,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "progress",
+          "step": 0,
+          "epoch": 0,
+          "loss": null,
+          "learning_rate": null,
+          "total_steps": 1000,
+          "elapsed_seconds": null,
+          "eta_seconds": null,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": null,
+          "eval_loss": null,
+          "status_message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 100,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 100,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 10.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 0,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "cuda_zero_session_steps": {
+      "kind": "cuda",
+      "start": 900,
+      "step": 900,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "progress",
+          "step": 0,
+          "epoch": 0,
+          "loss": null,
+          "learning_rate": null,
+          "total_steps": 1000,
+          "elapsed_seconds": null,
+          "eta_seconds": null,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": null,
+          "eval_loss": null,
+          "status_message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 900,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": null,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 900,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 90.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": null,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "cuda_resumed_with_setup_delay": {
+      "kind": "cuda",
+      "start": 900,
+      "step": 910,
+      "elapsed": 660,
+      "preparation_seconds": 600,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "progress",
+          "step": 0,
+          "epoch": 0,
+          "loss": null,
+          "learning_rate": null,
+          "total_steps": 1000,
+          "elapsed_seconds": null,
+          "eta_seconds": null,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": null,
+          "eval_loss": null,
+          "status_message": "Training in progress...",
+          "ts": 700.0
+        },
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 700.0
+        },
+        {
+          "type": "progress",
+          "step": 910,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 760.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 910,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 91.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "embedding_resumed": {
+      "kind": "embedding",
+      "start": 900,
+      "step": 910,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 910,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 910,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 91.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "embedding_fresh": {
+      "kind": "embedding",
+      "start": 0,
+      "step": 100,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 100,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 0,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 100,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 10.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 0,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "embedding_zero_session_steps": {
+      "kind": "embedding",
+      "start": 900,
+      "step": 900,
+      "elapsed": 60,
+      "preparation_seconds": 0,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 100.0
+        },
+        {
+          "type": "progress",
+          "step": 900,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": null,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 160.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 900,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 90.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": null,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    },
+    "embedding_resumed_with_setup_delay": {
+      "kind": "embedding",
+      "start": 900,
+      "step": 910,
+      "elapsed": 660,
+      "preparation_seconds": 600,
+      "stepping_seconds": 60,
+      "worker_events": [
+        {
+          "type": "status",
+          "message": "Training in progress...",
+          "ts": 700.0
+        },
+        {
+          "type": "progress",
+          "step": 910,
+          "epoch": 0.9,
+          "loss": 0.5,
+          "learning_rate": 0.0001,
+          "total_steps": 1000,
+          "elapsed_seconds": 60.0,
+          "eta_seconds": 540.0,
+          "session_start_step": 900,
+          "grad_norm": null,
+          "num_tokens": 0,
+          "eval_loss": null,
+          "status_message": "",
+          "ts": 760.0
+        }
+      ],
+      "sse_payload": {
+        "job_id": "job-resumed",
+        "step": 910,
+        "total_steps": 1000,
+        "loss": 0.5,
+        "learning_rate": 0.0001,
+        "progress_percent": 91.0,
+        "epoch": 0.9,
+        "elapsed_seconds": 60.0,
+        "eta_seconds": 540.0,
+        "session_start_step": 900,
+        "grad_norm": null,
+        "num_tokens": 0,
+        "eval_loss": null
+      }
+    }
+  }
+}

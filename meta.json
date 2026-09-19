@@ -1,0 +1,61 @@
+{
+  "pr": "https://github.com/unslothai/unsloth/pull/11297",
+  "scene": "resumed-training-progress",
+  "expect": "After resuming at900/1000 and completing10 steps in60s, ETA changes from5s to9m0s and rate from15.17 to0.17steps/s.",
+  "verified": true,
+  "mode": "Modal Linux Chromium; controlled callbacks -> worker events -> backend -> real SSE route -> production parser/store/LiveTrainingView; model imports and unrelated APIs stubbed; no GPU training claimed",
+  "before": {
+    "currentStep": 910,
+    "totalSteps": 1000,
+    "elapsedSeconds": 60,
+    "etaSeconds": 5.934065934065934,
+    "sessionStartStep": null,
+    "text": "Training Progress\n\nTraining in progress...\n\nStop\nTraining\nResumed training\nEpoch 0.90\n91% complete\nStep 910 / 1000\n91%\n\nMILESTONE\n\nHalfway done. Training is past 50%.\n\n50%+\n\nLoss\n\n0.5000\n\nLR\n\n1.00e-4\n\nGrad Norm\n\n--\n\nProject\n\nResumed training\n\nModel\n\nunsloth/Qwen3-0.6B\n\nMethod\n\nFull\n\nElapsed: 1m 0s\nETA: 5s\n15.17 steps/s\nTokens: 0\n\nGPU Monitor\n\nLive\nUtilization\n--\nTemperature\n--\nVRAM\n--\nPower\n--",
+    "page_errors": [],
+    "viewport": {
+      "width": 1366,
+      "height": 900
+    },
+    "browser": "153.0.8010.12",
+    "implementation_sha": "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+    "sse_sha256": "fda9f7e0eb80d1772c386721bf2331db1933d9080b82976280796a6537b960c8"
+  },
+  "after": {
+    "currentStep": 910,
+    "totalSteps": 1000,
+    "elapsedSeconds": 60,
+    "etaSeconds": 540,
+    "sessionStartStep": 900,
+    "text": "Training Progress\n\nTraining in progress...\n\nStop\nTraining\nResumed training\nEpoch 0.90\n91% complete\nStep 910 / 1000\n91%\n\nMILESTONE\n\nHalfway done. Training is past 50%.\n\n50%+\n\nLoss\n\n0.5000\n\nLR\n\n1.00e-4\n\nGrad Norm\n\n--\n\nProject\n\nResumed training\n\nModel\n\nunsloth/Qwen3-0.6B\n\nMethod\n\nFull\n\nElapsed: 1m 0s\nETA: 9m 0s\n0.17 steps/s\nTokens: 0\n\nGPU Monitor\n\nLive\nUtilization\n--\nTemperature\n--\nVRAM\n--\nPower\n--",
+    "page_errors": [],
+    "viewport": {
+      "width": 1366,
+      "height": 900
+    },
+    "browser": "153.0.8010.12",
+    "implementation_sha": "6d62eb4cf9066a0ec78410a31b69d0a5c9208462",
+    "sse_sha256": "7291bbfcf58381ca8bc3f22bf8f3cd37e9b5f2392ea5f216f95d4144946c08e5"
+  },
+  "facts_delta": {
+    "etaSeconds": [
+      5.934065934065934,
+      540
+    ],
+    "implementation_sha": [
+      "ef00d4946731d2cb9bed2982f1a24346843e7e19",
+      "6d62eb4cf9066a0ec78410a31b69d0a5c9208462"
+    ],
+    "sessionStartStep": [
+      null,
+      900
+    ],
+    "sse_sha256": [
+      "fda9f7e0eb80d1772c386721bf2331db1933d9080b82976280796a6537b960c8",
+      "7291bbfcf58381ca8bc3f22bf8f3cd37e9b5f2392ea5f216f95d4144946c08e5"
+    ],
+    "text": [
+      "Training Progress\n\nTraining in progress...\n\nStop\nTraining\nResumed training\nEpoch 0.90\n91% complete\nStep 910 / 1000\n91%\n\nMILESTONE\n\nHalfway done. Training is past 50%.\n\n50%+\n\nLoss\n\n0.5000\n\nLR\n\n1.00e-4\n\nGrad Norm\n\n--\n\nProject\n\nResumed training\n\nModel\n\nunsloth/Qwen3-0.6B\n\nMethod\n\nFull\n\nElapsed: 1m 0s\nETA: 5s\n15.17 steps/s\nTokens: 0\n\nGPU Monitor\n\nLive\nUtilization\n--\nTemperature\n--\nVRAM\n--\nPower\n--",
+      "Training Progress\n\nTraining in progress...\n\nStop\nTraining\nResumed training\nEpoch 0.90\n91% complete\nStep 910 / 1000\n91%\n\nMILESTONE\n\nHalfway done. Training is past 50%.\n\n50%+\n\nLoss\n\n0.5000\n\nLR\n\n1.00e-4\n\nGrad Norm\n\n--\n\nProject\n\nResumed training\n\nModel\n\nunsloth/Qwen3-0.6B\n\nMethod\n\nFull\n\nElapsed: 1m 0s\nETA: 9m 0s\n0.17 steps/s\nTokens: 0\n\nGPU Monitor\n\nLive\nUtilization\n--\nTemperature\n--\nVRAM\n--\nPower\n--"
+    ]
+  }
+}
