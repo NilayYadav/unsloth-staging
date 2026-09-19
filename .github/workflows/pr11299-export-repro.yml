@@ -1,0 +1,53 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11299 export upload A-B"
+
+on:
+  push:
+    branches:
+      - "pr-11299-repro-20260918"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Upload manifests (${{ matrix.os }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Install focused dependencies"
+        shell: bash
+        run: |
+          python -m pip install pytest==9.0.2 huggingface-hub==1.32.0 pyyaml structlog psutil fastapi requests
+
+      - name: "Run identical before and after checks"
+        shell: bash
+        run: |
+          python evidence/pr11299/run_ab.py
+
+      - name: "Publish manifest to job summary"
+        shell: bash
+        run: |
+          cat evidence/pr11299/results/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pr11299-export-${{ matrix.os }}
+          path: evidence/pr11299/results/
+          retention-days: 14
