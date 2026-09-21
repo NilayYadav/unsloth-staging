@@ -113,7 +113,6 @@ import {
   generationIsCorroboratedLive,
   threadHasDurableGenerationRun,
   generationNeedsRecovery,
-  requestParsesThinkTags,
   restoreCarriedPartsFromRaw,
   isLiveGenerationRun,
   generationRawContent,
@@ -871,7 +870,6 @@ function scheduleGenerationRecovery(
     const carried = stored.carried;
     const toolRecovery = createGenerationToolRecovery(carried, runId, cursor);
     let { raw, reasoningOpen } = stored;
-    let parseThink = metadata.parseThinkTags !== false;
     let completionTokens: number | undefined;
     let recoveryUsage:
       | {
@@ -909,7 +907,6 @@ function scheduleGenerationRecovery(
         restoreCarriedPartsFromRaw(
           reasoningOpen ? `${raw}</think>` : raw,
           carried,
-          { parseThink },
         ),
       ) as MessageRecord["content"];
     const toolNames = (content: MessageRecord["content"]): string[] =>
@@ -1046,13 +1043,6 @@ function scheduleGenerationRecovery(
                 raw = lastRequestMessage.content;
               }
             }
-            if (typeof metadata.parseThinkTags !== "boolean") {
-              parseThink = requestParsesThinkTags(update.run.requestPayload);
-              currentMetadata = {
-                ...currentMetadata,
-                parseThinkTags: parseThink,
-              };
-            }
             identityValidated = true;
           }
           // Replay from 0 re-delivers already-saved chunks: apply them, but publish nothing.
@@ -1122,13 +1112,7 @@ function scheduleGenerationRecovery(
                 typeof deltaRecord?.reasoning_content === "string"
                   ? deltaRecord.reasoning_content
                   : "";
-              const { text: delta, hasStructuredReasoning } = extractDeltaText(
-                deltaRecord?.content,
-              );
-              if (!parseThink && (reasoning || hasStructuredReasoning)) {
-                parseThink = true;
-                currentMetadata = { ...currentMetadata, parseThinkTags: true };
-              }
+              const delta = extractDeltaText(deltaRecord?.content).text;
               if (reasoning) {
                 if (!reasoningOpen) raw += "<think>";
                 raw += reasoning;
