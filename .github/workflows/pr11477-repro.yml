@@ -11,6 +11,10 @@ concurrency:
 jobs:
   repro:
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        ctx: ['0', '2048']
     timeout-minutes: 45
     env:
       MODEL: unsloth/Qwen2.5-0.5B-Instruct
@@ -68,7 +72,7 @@ jobs:
           echo "::add-mask::$TOKEN"; echo "::add-mask::$REFRESH"
           echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"; echo "REFRESH=$REFRESH" >> "$GITHUB_ENV"
           curl -fsS -X POST "http://127.0.0.1:$PORT/api/inference/load" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-            --max-time 1500 -d "{\"model_path\":\"$MODEL\",\"is_lora\":false,\"max_seq_length\":2048,\"load_in_4bit\":false}" | tail -c 400; echo
+            --max-time 1500 -d "{\"model_path\":\"$MODEL\",\"is_lora\":false,\"max_seq_length\":${{ matrix.ctx }},\"load_in_4bit\":false}" | tail -c 400; echo
           curl -fs "http://127.0.0.1:$PORT/api/inference/status" -H "Authorization: Bearer $TOKEN" > logs/status_before.json
           python - <<'PY'
           import json; s=json.load(open("logs/status_before.json"))
@@ -97,21 +101,22 @@ jobs:
           s = json.load(open("logs/status_after.json"))
           log = open("logs/studio_after_cli.log").read()
           skipped = "skipping reload" in log
-          print("AFTER active_model=%s load_in_4bit=%s skipped_reload=%s" % (s.get("active_model"), s.get("load_in_4bit"), skipped))
-          if s.get("load_in_4bit") is not False or not skipped:
+          requant = "Quantized text model to 4-bit" in log
+          print("AFTER active_model=%s load_in_4bit=%s skipped_reload=%s requantized_4bit=%s" % (s.get("active_model"), s.get("load_in_4bit"), skipped, requant))
+          if s.get("load_in_4bit") is not False or requant:
               print("FAIL: unsloth inference reloaded the 16-bit model in 4-bit")
               raise SystemExit(1)
-          print("PASS: 16-bit model kept, no reload")
+          print("PASS: model still 16-bit (%s)" % ("no reload" if skipped else "reloaded for another setting, precision kept"))
           PY
       - name: Screenshot the API monitor
         if: always()
-        run: python .github/pr11477/shoot_monitor.py "${{ github.ref_name }}" logs/api_monitor_${{ github.ref_name }}.png | tee logs/ui_facts.json
+        run: python .github/pr11477/shoot_monitor.py "${{ github.ref_name }}" logs/api_monitor_${{ github.ref_name }}_ctx${{ matrix.ctx }}.png | tee logs/ui_facts.json
       - if: always()
         run: pkill -f "unsloth studio" || true
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: pr11477-repro-logs-${{ github.ref_name }}
+          name: pr11477-repro-logs-${{ github.ref_name }}-ctx${{ matrix.ctx }}
           path: |
             logs/*.png
             logs/*.json
