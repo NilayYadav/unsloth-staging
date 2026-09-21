@@ -1,0 +1,240 @@
+{
+  "modal_ab": [
+    {
+      "label": "before",
+      "tf": "5.5.0",
+      "head": "1d8a60840ea740864e998a77cb62b2ec9ed50847",
+      "versions": "5.5.0 1.32.0 2.8.0+cu128",
+      "tests_exit": 1,
+      "tests_summary": "2 failed, 49 passed in 21.79s",
+      "failed": [
+        "FAILED tests/test_merged_hub_destination.py::test_default_full_finetune_push_stages_one_commit",
+        "FAILED tests/test_merged_hub_destination.py::test_default_full_finetune_push_uploads_16bit_safetensors"
+      ],
+      "push": {
+        "repo": "yNilay/pr11482-before-tf550-09220244",
+        "loss": 7.7085,
+        "param_dtype": "torch.bfloat16",
+        "padding_side_before": "left",
+        "push": "TypeError: unsloth_push_to_hub() got an unexpected keyword argument 'safe_serialization'",
+        "padding_side_after": "left",
+        "param_dtype_after": "torch.bfloat16",
+        "files": null
+      }
+    },
+    {
+      "label": "after",
+      "tf": "5.5.0",
+      "head": "fa06fb2eace0785fd209689e6f7898ab5f6eb23e",
+      "versions": "5.5.0 1.32.0 2.8.0+cu128",
+      "tests_exit": 0,
+      "tests_summary": "51 passed in 31.58s",
+      "failed": [],
+      "push": {
+        "repo": "yNilay/pr11482-after-tf550-09220244",
+        "loss": 7.7085,
+        "param_dtype": "torch.bfloat16",
+        "padding_side_before": "left",
+        "push": "ok",
+        "padding_side_after": "left",
+        "param_dtype_after": "torch.bfloat16",
+        "files": [
+          ".gitattributes",
+          "README.md",
+          "chat_template.jinja",
+          "config.json",
+          "generation_config.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "tokenizer_config.json"
+        ],
+        "commits": [
+          "Trained with Unsloth",
+          "initial commit"
+        ],
+        "weight_dtypes": [
+          "BF16"
+        ],
+        "card": {
+          "datasets": [
+            "yahma/alpaca-cleaned"
+          ],
+          "tags": [
+            "text-generation-inference",
+            "transformers",
+            "unsloth",
+            "llama"
+          ],
+          "base_model": "unsloth/SmolLM2-135M-Instruct"
+        }
+      }
+    },
+    {
+      "label": "before",
+      "tf": "4.57.6",
+      "head": "1d8a60840ea740864e998a77cb62b2ec9ed50847",
+      "versions": "4.57.6 0.36.2 2.8.0+cu128",
+      "tests_exit": 1,
+      "tests_summary": "2 failed, 49 passed in 25.20s",
+      "failed": [
+        "FAILED tests/test_merged_hub_destination.py::test_default_full_finetune_push_stages_one_commit",
+        "FAILED tests/test_merged_hub_destination.py::test_default_full_finetune_push_uploads_16bit_safetensors"
+      ],
+      "push": {
+        "repo": "yNilay/pr11482-before-tf4576-09220244",
+        "loss": 7.7085,
+        "param_dtype": "torch.bfloat16",
+        "padding_side_before": "left",
+        "push": "ok",
+        "padding_side_after": "left",
+        "param_dtype_after": "torch.bfloat16",
+        "files": [
+          ".gitattributes",
+          "README.md",
+          "added_tokens.json",
+          "chat_template.jinja",
+          "config.json",
+          "generation_config.json",
+          "merges.txt",
+          "model.safetensors",
+          "special_tokens_map.json",
+          "tokenizer.json",
+          "tokenizer_config.json",
+          "vocab.json"
+        ],
+        "commits": [
+          "Update metadata with huggingface_hub",
+          "Trained with Unsloth",
+          "Trained with Unsloth",
+          "Upload README.md with huggingface_hub",
+          "initial commit"
+        ],
+        "weight_dtypes": [
+          "BF16",
+          "F32"
+        ],
+        "card": {
+          "datasets": [
+            "yahma/alpaca-cleaned"
+          ],
+          "tags": [
+            "text-generation-inference",
+            "transformers",
+            "unsloth",
+            "llama",
+            "trl"
+          ],
+          "base_model": "unsloth/SmolLM2-135M-Instruct"
+        }
+      }
+    },
+    {
+      "label": "after",
+      "tf": "4.57.6",
+      "head": "fa06fb2eace0785fd209689e6f7898ab5f6eb23e",
+      "versions": "4.57.6 0.36.2 2.8.0+cu128",
+      "tests_exit": 0,
+      "tests_summary": "51 passed in 19.94s",
+      "failed": [],
+      "push": {
+        "repo": "yNilay/pr11482-after-tf4576-09220244",
+        "loss": 7.7085,
+        "param_dtype": "torch.bfloat16",
+        "padding_side_before": "left",
+        "push": "ok",
+        "padding_side_after": "left",
+        "param_dtype_after": "torch.bfloat16",
+        "files": [
+          ".gitattributes",
+          "README.md",
+          "added_tokens.json",
+          "chat_template.jinja",
+          "config.json",
+          "generation_config.json",
+          "merges.txt",
+          "model.safetensors",
+          "special_tokens_map.json",
+          "tokenizer.json",
+          "tokenizer_config.json",
+          "vocab.json"
+        ],
+        "commits": [
+          "Trained with Unsloth",
+          "initial commit"
+        ],
+        "weight_dtypes": [
+          "BF16"
+        ],
+        "card": {
+          "datasets": [
+            "yahma/alpaca-cleaned"
+          ],
+          "tags": [
+            "text-generation-inference",
+            "transformers",
+            "unsloth",
+            "llama"
+          ],
+          "base_model": "unsloth/SmolLM2-135M-Instruct"
+        }
+      }
+    }
+  ],
+  "studio_ui": {
+    "transformers": "5.5.0",
+    "sides": {
+      "before": {
+        "ref": "1d8a60840ea740864e998a77cb62b2ec9ed50847",
+        "save_py_sha256": "1ca2789d16cfa91bc127600de9666aa6599689dbd3fe7423b3a14f53b5a2b39c",
+        "panel_success": true,
+        "unsloth_work_lines": [
+          "Unsloth: Saving full fine-tuned model to '/root/home_before/exports/root-models-SmolLM2-135M-fullft-merged' ..."
+        ],
+        "hub_commits": [
+          "Unsloth Model Card",
+          "Upload folder using huggingface_hub",
+          "initial commit"
+        ],
+        "hub_files": [
+          ".gitattributes",
+          "README.md",
+          "chat_template.jinja",
+          "config.json",
+          "generation_config.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "tokenizer_config.json"
+        ],
+        "weight_dtypes": [
+          "BF16"
+        ]
+      },
+      "after": {
+        "ref": "fa06fb2eace0785fd209689e6f7898ab5f6eb23e",
+        "save_py_sha256": "291afa7e138f79bc2e84061239ca3e17174a02ba2a30c9cf73810857b7f08148",
+        "panel_success": true,
+        "unsloth_work_lines": [
+          "Unsloth: Saving full fine-tuned model to '/root/home_after/exports/root-models-SmolLM2-135M-fullft-merged' ..."
+        ],
+        "hub_commits": [
+          "Unsloth Model Card",
+          "Upload folder using huggingface_hub",
+          "initial commit"
+        ],
+        "hub_files": [
+          ".gitattributes",
+          "README.md",
+          "chat_template.jinja",
+          "config.json",
+          "generation_config.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "tokenizer_config.json"
+        ],
+        "weight_dtypes": [
+          "BF16"
+        ]
+      }
+    }
+  }
+}
