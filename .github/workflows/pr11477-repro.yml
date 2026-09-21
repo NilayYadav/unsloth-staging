@@ -1,0 +1,98 @@
+name: "PR 11477 CLI keeps server precision (MLX)"
+on:
+  push:
+    branches: [pr11477-repro-pos, pr11477-repro-neg]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr11477-repro-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  repro:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      MODEL: unsloth/Qwen2.5-0.5B-Instruct
+      PORT: '8888'
+      UNSLOTH_COMPILE_DISABLE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install deps (mlx-ci shape)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography pyyaml jinja2 mammoth unpdf requests typer 'numpy<3' httpx
+          pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch==2.10.0'
+          for a in 1 2 3; do pip install "unsloth_zoo @ git+https://github.com/unslothai/unsloth-zoo" && break; sleep 10; done
+          pip install -e . --no-deps
+          python -c "import mlx, mlx_lm; print('mlx ok')"
+          STUDIO_VENV="$HOME/.unsloth/studio/unsloth_studio"
+          rm -rf "$STUDIO_VENV"
+          python -m venv --system-site-packages "$STUDIO_VENV"
+          "$STUDIO_VENV/bin/pip" install --no-deps -e .
+          git log -1 --format='tested tree: %H' ; git diff --stat origin/main -- unsloth_cli || true
+      - name: Boot Studio
+        run: |
+          mkdir -p logs
+          export PATH="$HOME/.unsloth/studio/unsloth_studio/bin:$PATH"
+          UNSLOTH_API_ONLY=1 nohup unsloth studio -H 127.0.0.1 -p "$PORT" > logs/studio.log 2>&1 &
+          for i in $(seq 1 180); do
+            curl -fs "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && [ -f ~/.unsloth/studio/auth/.bootstrap_password ] && break
+            sleep 2
+          done
+          curl -fs "http://127.0.0.1:$PORT/api/health"; echo
+      - name: Load model in 16-bit through the API (what the UI does)
+        run: |
+          PW=$(cat ~/.unsloth/studio/auth/.bootstrap_password)
+          TOKEN=$(curl -fs -X POST "http://127.0.0.1:$PORT/api/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"username\":\"unsloth\",\"password\":\"$PW\"}" | python -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+          echo "::add-mask::$TOKEN"; echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          curl -fsS -X POST "http://127.0.0.1:$PORT/api/inference/load" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            --max-time 1500 -d "{\"model_path\":\"$MODEL\",\"is_lora\":false,\"max_seq_length\":2048,\"load_in_4bit\":false}" | tail -c 400; echo
+          curl -fs "http://127.0.0.1:$PORT/api/inference/status" -H "Authorization: Bearer $TOKEN" > logs/status_before.json
+          python - <<'PY'
+          import json; s=json.load(open("logs/status_before.json"))
+          print("BEFORE active_model=%s load_in_4bit=%s" % (s.get("active_model"), s.get("load_in_4bit")))
+          assert s.get("load_in_4bit") is False, "setup: model is not resident in 16-bit"
+          PY
+      - name: Run `unsloth inference` without --load-in-4bit
+        run: |
+          export PATH="$HOME/.unsloth/studio/unsloth_studio/bin:$PATH"
+          LINES_BEFORE=$(wc -l < logs/studio.log)
+          echo "LINES_BEFORE=$LINES_BEFORE" >> "$GITHUB_ENV"
+          set +e
+          unsloth inference "$MODEL" "Say hi." --max-new-tokens 8 > logs/cli.out 2> logs/cli.err
+          echo "CLI exit=$?"
+          set -e
+          cat logs/cli.err; echo "--- stdout"; cat logs/cli.out
+          grep -q "Loading $MODEL on the Unsloth server" logs/cli.err || { echo "::error::CLI did not attach to the running server"; exit 1; }
+      - name: Assert the 16-bit model was kept
+        run: |
+          curl -fs "http://127.0.0.1:$PORT/api/inference/status" -H "Authorization: Bearer $TOKEN" > logs/status_after.json
+          tail -n +"$((LINES_BEFORE+1))" logs/studio.log > logs/studio_after_cli.log
+          echo "--- server log lines after CLI (load/reload related)"
+          grep -iE "already loaded|skipping reload|loading model|load_in_4bit|4-bit|4bit|unload" logs/studio_after_cli.log | head -30 || true
+          python - <<'PY'
+          import json
+          s = json.load(open("logs/status_after.json"))
+          log = open("logs/studio_after_cli.log").read()
+          skipped = "skipping reload" in log
+          print("AFTER active_model=%s load_in_4bit=%s skipped_reload=%s" % (s.get("active_model"), s.get("load_in_4bit"), skipped))
+          if s.get("load_in_4bit") is not False or not skipped:
+              print("FAIL: unsloth inference reloaded the 16-bit model in 4-bit")
+              raise SystemExit(1)
+          print("PASS: 16-bit model kept, no reload")
+          PY
+      - if: always()
+        run: pkill -f "unsloth studio" || true
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr11477-repro-logs-${{ github.ref_name }}
+          path: logs/
