@@ -23,6 +23,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '22'
+      - name: Build frontend
+        working-directory: studio/frontend
+        run: npm ci --no-audit --no-fund && npx vite build && ls dist | head
       - name: Install deps (mlx-ci shape)
         run: |
           python -m pip install --upgrade pip
@@ -31,6 +37,7 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple 'torch==2.10.0'
           for a in 1 2 3; do pip install "unsloth_zoo @ git+https://github.com/unslothai/unsloth-zoo" && break; sleep 10; done
           pip install -e . --no-deps
+          pip install playwright==1.55.0 && python -m playwright install chromium
           python -c "import mlx, mlx_lm; print('mlx ok')"
           STUDIO_VENV="$HOME/.unsloth/studio/unsloth_studio"
           rm -rf "$STUDIO_VENV"
@@ -41,7 +48,7 @@ jobs:
         run: |
           mkdir -p logs
           export PATH="$HOME/.unsloth/studio/unsloth_studio/bin:$PATH"
-          UNSLOTH_API_ONLY=1 nohup unsloth studio -H 127.0.0.1 -p "$PORT" > logs/studio.log 2>&1 &
+          nohup unsloth studio -H 127.0.0.1 -p "$PORT" > logs/studio.log 2>&1 &
           for i in $(seq 1 180); do
             curl -fs "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && [ -f ~/.unsloth/studio/auth/.bootstrap_password ] && break
             sleep 2
@@ -49,10 +56,17 @@ jobs:
           curl -fs "http://127.0.0.1:$PORT/api/health"; echo
       - name: Load model in 16-bit through the API (what the UI does)
         run: |
-          PW=$(cat ~/.unsloth/studio/auth/.bootstrap_password)
-          TOKEN=$(curl -fs -X POST "http://127.0.0.1:$PORT/api/auth/login" -H 'Content-Type: application/json' \
-            -d "{\"username\":\"unsloth\",\"password\":\"$PW\"}" | python -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
-          echo "::add-mask::$TOKEN"; echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          OLD=$(cat ~/.unsloth/studio/auth/.bootstrap_password); echo "::add-mask::$OLD"
+          NEW="CIRotated-$(python -c 'import secrets; print(secrets.token_urlsafe(12))')"; echo "::add-mask::$NEW"
+          OT=$(curl -fs -X POST "http://127.0.0.1:$PORT/api/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"username\":\"unsloth\",\"password\":\"$OLD\"}" | jq -r .access_token)
+          curl -fs -X POST "http://127.0.0.1:$PORT/api/auth/change-password" -H "Authorization: Bearer $OT" \
+            -H 'Content-Type: application/json' -d "{\"current_password\":\"$OLD\",\"new_password\":\"$NEW\"}" > /dev/null
+          curl -fs -X POST "http://127.0.0.1:$PORT/api/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"username\":\"unsloth\",\"password\":\"$NEW\"}" > /tmp/login.json
+          TOKEN=$(jq -r .access_token /tmp/login.json); REFRESH=$(jq -r .refresh_token /tmp/login.json); rm /tmp/login.json
+          echo "::add-mask::$TOKEN"; echo "::add-mask::$REFRESH"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"; echo "REFRESH=$REFRESH" >> "$GITHUB_ENV"
           curl -fsS -X POST "http://127.0.0.1:$PORT/api/inference/load" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
             --max-time 1500 -d "{\"model_path\":\"$MODEL\",\"is_lora\":false,\"max_seq_length\":2048,\"load_in_4bit\":false}" | tail -c 400; echo
           curl -fs "http://127.0.0.1:$PORT/api/inference/status" -H "Authorization: Bearer $TOKEN" > logs/status_before.json
@@ -89,10 +103,17 @@ jobs:
               raise SystemExit(1)
           print("PASS: 16-bit model kept, no reload")
           PY
+      - name: Screenshot the API monitor
+        if: always()
+        run: python .github/pr11477/shoot_monitor.py "${{ github.ref_name }}" logs/api_monitor_${{ github.ref_name }}.png | tee logs/ui_facts.json
       - if: always()
         run: pkill -f "unsloth studio" || true
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: pr11477-repro-logs-${{ github.ref_name }}
-          path: logs/
+          path: |
+            logs/*.png
+            logs/*.json
+            logs/cli.*
+            logs/studio_after_cli.log
