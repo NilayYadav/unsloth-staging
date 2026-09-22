@@ -1,0 +1,16 @@
+{
+  "label": "nil-pr11596-ab-reverted",
+  "tool_args": [
+    "{\"city\": \"Paris\"}",
+    "{\"city\": \"Tokyo\"}"
+  ],
+  "tool_results": [
+    "Tokyo: 27°C, clear sky",
+    "Tokyo: 27°C, clear sky"
+  ],
+  "expected": [
+    "Paris: 18°C, light rain",
+    "Tokyo: 27°C, clear sky"
+  ],
+  "page_errors": []
+}
