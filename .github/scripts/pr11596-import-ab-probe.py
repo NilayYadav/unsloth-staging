@@ -142,7 +142,11 @@ async def drive(base: str, access: str, refresh: str, out: Path) -> dict:
         try:
             await page.goto(f"{base}/chat", wait_until="domcontentloaded")
             await page.locator("form:has(textarea) textarea").first.wait_for(state="visible", timeout=60_000)
-            await page.goto(f"{base}/settings", wait_until="domcontentloaded")
+            await page.locator('[aria-label$="account menu"]').first.click()
+            await page.get_by_role("menuitem", name=re.compile(r"^Settings")).first.click()
+            dialog = page.get_by_role("dialog")
+            await dialog.wait_for(state="visible", timeout=15_000)
+            await dialog.locator("button, [role=tab]").filter(has_text=re.compile(r"^\s*Data\s*$")).first.click()
             file_input = page.locator('input[type=file][accept=".json,.jsonl,.ndjson,.csv"]')
             await file_input.wait_for(state="attached", timeout=30_000)
             await page.screenshot(path=str(out / "01-settings-data.png"))
