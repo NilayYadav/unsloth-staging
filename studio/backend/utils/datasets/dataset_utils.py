@@ -26,7 +26,6 @@ from .chat_templates import (
     get_tokenizer_chat_template,
     DEFAULT_ALPACA_TEMPLATE,
 )
-from .cells import cell_text
 from .raw_text import prepare_raw_text_dataset
 from .vlm_processing import generate_smart_vlm_instruction
 from .data_collators import DeepSeekOCRDataCollator, VLMDataCollator
@@ -229,9 +228,6 @@ def _extract_column_value(val, col: str, label_mapping: dict) -> str:
         else:
             str_val = json.dumps(val, ensure_ascii = False)
     elif isinstance(val, list):
-        names = label_mapping.get(col)
-        if isinstance(names, dict):
-            return ", ".join(names.get(str(v), str(v)) for v in val)
         str_val = val[0] if len(val) == 1 else ", ".join(str(v) for v in val)
     else:
         str_val = str(val) if val is not None else ""
@@ -306,21 +302,16 @@ def _apply_user_mapping_alpaca(
     batch_size: int = 1000,
 ):
     """Apply user-provided column mapping to convert dataset to Alpaca format. Accepts any format's role names, normalises via _TO_CHATML, then maps user -> instruction, system -> input, assistant -> output. Returns a dataset with instruction/input/output columns."""
-    meta = {k: v for k, v in mapping.items() if k.startswith("__")}
-    column_roles = {k: v for k, v in mapping.items() if not k.startswith("__")}
-    system_prompt = meta.get("__system_prompt", "")
-    label_mapping = meta.get("__label_mapping", {})
-
-    col_for: dict[str, list[str]] = {
-        "instruction": [],
-        "input": [],
-        "output": [],
+    col_for: dict[str, str | None] = {
+        "instruction": None,
+        "input": None,
+        "output": None,
     }
-    for col_name, role in column_roles.items():
+    for col_name, role in mapping.items():
         canonical = _TO_CHATML.get(role)
         alpaca_field = _CHATML_TO_ALPACA.get(canonical) if canonical else None
         if alpaca_field:
-            col_for[alpaca_field].append(col_name)
+            col_for[alpaca_field] = col_name
 
     def _convert(examples):
         num = len(next(iter(examples.values())))
@@ -331,13 +322,8 @@ def _apply_user_mapping_alpaca(
                 ("input", inputs),
                 ("output", outputs),
             ):
-                val = "\n".join(
-                    cell_text(_extract_column_value(examples[col][i], col, label_mapping))
-                    for col in col_for[field]
-                    if col in examples
-                )
-                if field == "instruction" and system_prompt:
-                    val = "\n\n".join(part for part in (system_prompt, val) if part)
+                col = col_for[field]
+                val = str(examples[col][i]) if col and col in examples and examples[col][i] else ""
                 dest.append(val)
         return {"instruction": instructions, "input": inputs, "output": outputs}
 
