@@ -1,0 +1,39 @@
+# Disposable repro workflow. Delete after validation.
+
+name: "PR 11595 notebook vllm_sampling_params A/B"
+
+on:
+  push:
+    branches:
+      - "pr11595-ab-*-20260922224623"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: "Install vLLM 0.11.0 (CPU torch) and fetch unsloth_zoo source"
+        shell: bash
+        run: |
+          python -m pip install -q uv
+          uv pip install --system 'vllm==0.11.0' --torch-backend=cpu
+          python -m pip download -q --no-deps unsloth_zoo -d /tmp/zoo && cd /tmp/zoo && python -m zipfile -e unsloth_zoo-*.whl src
+
+      - name: "Notebook vllm_sampling_params reach the vLLM request"
+        shell: bash
+        run: |
+          python .github/pr11595_probe.py /tmp/zoo/src
+
