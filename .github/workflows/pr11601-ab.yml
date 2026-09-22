@@ -1,0 +1,60 @@
+name: "PR 11601 A/B repro"
+
+on:
+  push:
+    branches: ['pr11601-ab-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "full-finetune GGUF export reads trained weights"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      PYTHONPATH: ${{ github.workspace }}/studio
+      UNSLOTH_COMPILE_DISABLE: '1'
+      UNSLOTH_IS_PRESENT: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Restore the pip cache
+        id: pip-cache
+        uses: ./.github/actions/pip-cache-restore
+        with:
+          name: consolidated
+          key-files: |
+            pyproject.toml
+            studio/backend/requirements/*.txt
+
+      - name: Core CPU setup
+        uses: ./.github/actions/core-cpu-setup
+        with:
+          transformers-spec: __from_pyproject__
+          trl-spec: __from_pyproject__
+          unsloth-zoo-ref: main
+
+      - name: Which save.py is under test
+        run: |
+          git log --oneline -3
+          grep -c "_gguf_reuses_loaded_checkpoint" unsloth/save.py || true
+
+      - name: Real tiny-Llama probe (converter input vs trained weights)
+        run: python -m pytest -q -s -rA tests/saving/test_pr11601_ab_probe.py
+
+      - name: PR regression test
+        if: always()
+        run: python -m pytest -q -rA "tests/saving/test_export_dispatch.py::test_full_finetune_gguf_writes_trained_weights_not_source_checkpoint"
+
+      - name: Full export dispatch suite
+        if: always()
+        run: python -m pytest -q tests/saving/test_export_dispatch.py
