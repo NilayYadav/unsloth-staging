@@ -1,0 +1,113 @@
+name: "PR 11854 structured outputs repro"
+
+on:
+  push:
+    branches: ['pr11854-ab-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Anthropic output_config.format on /v1/messages"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+      GGUF_REPO: unsloth/gemma-3-270m-it-GGUF
+      GGUF_VARIANT: UD-Q4_K_XL
+      GGUF_FILE: gemma-3-270m-it-UD-Q4_K_XL.gguf
+      STUDIO_PORT: '18888'
+      STUDIO_LOG: logs/studio.log
+      HF_HOME: ${{ github.workspace }}/hf-cache
+      HF_XET_CACHE: ${{ github.workspace }}/xet-scratch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Show inference.py state under test
+        run: |
+          git log --oneline -3
+          grep -c "_anthropic_response_format" studio/backend/routes/inference.py || echo "0 (fix absent)"
+
+      - name: Linux deps for llama.cpp prebuilt
+        timeout-minutes: 15
+        env:
+          RETRY_ATTEMPTS: '2'
+          RETRY_ATTEMPT_TIMEOUT: '360'
+        run: |
+          bash .github/scripts/retry-with-apt-lock.sh sudo sh -c \
+            'apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev jq || { apt-get update && apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev jq; }'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Unsloth (--local, --no-torch)
+        timeout-minutes: 25
+        uses: ./.github/actions/install-unsloth-local
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          hf-token: ''
+
+      - name: Install Anthropic SDK
+        run: pip install 'anthropic==0.125.0' pydantic
+
+      - name: Download the GGUF
+        timeout-minutes: 15
+        run: |
+          python -m pip install --upgrade huggingface_hub
+          mkdir -p hf-cache
+          bash .github/scripts/hf-download-with-retry.sh "$GGUF_REPO" "$GGUF_FILE"
+
+      - name: Boot Unsloth
+        timeout-minutes: 5
+        run: bash .github/scripts/boot-studio-api-only.sh --port "$STUDIO_PORT" --log "$STUDIO_LOG"
+
+      - name: Wait for /api/health
+        timeout-minutes: 10
+        run: bash .github/scripts/wait-for-health.sh --port "$STUDIO_PORT"
+
+      - name: Log in and load the GGUF
+        timeout-minutes: 10
+        run: |
+          PW=$(cat ~/.unsloth/studio/auth/.bootstrap_password)
+          echo "::add-mask::$PW"
+          TOKEN=$(curl -fs -X POST "http://127.0.0.1:${STUDIO_PORT}/api/auth/login" \
+            -H 'content-type: application/json' \
+            -d "{\"username\":\"unsloth\",\"password\":\"$PW\"}" | jq -r .access_token)
+          [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "login failed"; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          curl -fs -X POST "http://127.0.0.1:${STUDIO_PORT}/api/inference/load" \
+            -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --max-time 600 \
+            -d "{\"model_path\":\"$GGUF_REPO\",\"gguf_variant\":\"$GGUF_VARIANT\",\"is_lora\":false,\"max_seq_length\":2048}" \
+            | jq '{status, display_name, is_gguf, context_length}'
+
+      - name: Probe /v1/messages with a JSON schema format
+        timeout-minutes: 10
+        env:
+          BASE_URL: http://127.0.0.1:18888
+        run: python3 .github/scripts/pr11854/probe.py
+
+      - name: Stop Unsloth
+        if: always()
+        run: kill "${STUDIO_PID}" 2>/dev/null || true
+
+      - name: Upload logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: pr11854-${{ github.ref_name }}-logs
+          path: |
+            logs/studio.log
+            logs/install.log
+          retention-days: 7
