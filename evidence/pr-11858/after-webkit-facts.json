@@ -1,0 +1,67 @@
+{
+  "side": "after",
+  "browser": "webkit",
+  "sha": "2a60734de8168551a56e3bb3f6b1ab0d59fb0f1a",
+  "setup_page": {
+    "form_found": true,
+    "url_path": "/change-password",
+    "heading": "Setup your account",
+    "password_fields": [
+      {
+        "id": "new-password",
+        "autocomplete": "new-password"
+      },
+      {
+        "id": "confirm-password",
+        "autocomplete": "new-password"
+      }
+    ],
+    "username_fields": [
+      {
+        "name": "username",
+        "type": "text",
+        "autocomplete": "username",
+        "value": "unsloth",
+        "readOnly": true,
+        "tabIndex": -1,
+        "ariaHidden": "true",
+        "size_px": [
+          1,
+          1
+        ]
+      }
+    ],
+    "username_field_count": 1,
+    "account_name_password_manager_sees": "unsloth"
+  },
+  "setup_submit_landed_on": "/chat",
+  "login_page": {
+    "form_found": true,
+    "url_path": "/login",
+    "heading": "Welcome back",
+    "password_fields": [
+      {
+        "id": "password",
+        "autocomplete": "current-password"
+      }
+    ],
+    "username_fields": [
+      {
+        "name": "username",
+        "type": "text",
+        "autocomplete": "username",
+        "value": "unsloth",
+        "readOnly": true,
+        "tabIndex": -1,
+        "ariaHidden": "true",
+        "size_px": [
+          1,
+          1
+        ]
+      }
+    ],
+    "username_field_count": 1,
+    "account_name_password_manager_sees": "unsloth"
+  },
+  "login_submit_landed_on": "/chat"
+}

@@ -1,0 +1,39 @@
+{
+  "side": "before",
+  "browser": "chromium",
+  "sha": "ae30523182f568bddd4805cd4a57dff32d069eb5",
+  "setup_page": {
+    "form_found": true,
+    "url_path": "/change-password",
+    "heading": "Setup your account",
+    "password_fields": [
+      {
+        "id": "new-password",
+        "autocomplete": "new-password"
+      },
+      {
+        "id": "confirm-password",
+        "autocomplete": "new-password"
+      }
+    ],
+    "username_fields": [],
+    "username_field_count": 0,
+    "account_name_password_manager_sees": null
+  },
+  "setup_submit_landed_on": "/chat",
+  "login_page": {
+    "form_found": true,
+    "url_path": "/login",
+    "heading": "Welcome back",
+    "password_fields": [
+      {
+        "id": "password",
+        "autocomplete": "current-password"
+      }
+    ],
+    "username_fields": [],
+    "username_field_count": 0,
+    "account_name_password_manager_sees": null
+  },
+  "login_submit_landed_on": "/chat"
+}
