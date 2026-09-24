@@ -1,0 +1,246 @@
+{
+  "side": "before",
+  "sha": "078b0c5",
+  "resolve": {
+    "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+    "backend": "llama",
+    "download_repo": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+    "files": null,
+    "cached": true,
+    "size_bytes": null,
+    "error": null
+  },
+  "embedding_setting": {
+    "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+    "embedding_gguf_repo": "Qwen/Qwen3-Embedding-0.6B-GGUF"
+  },
+  "documents": [
+    "bitcoin.txt:completed",
+    "bread.txt:completed",
+    "photosynthesis.txt:completed",
+    "tides.txt:completed",
+    "vaccines.txt:completed",
+    "volcanoes.txt:completed"
+  ],
+  "questions": [
+    {
+      "question": "How do plants make food from light?",
+      "expected": "photosynthesis.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8916
+        ],
+        [
+          "bitcoin.txt",
+          0.846
+        ],
+        [
+          "vaccines.txt",
+          0.8192
+        ],
+        [
+          "photosynthesis.txt",
+          0.8106
+        ],
+        [
+          "bread.txt",
+          0.8053
+        ],
+        [
+          "volcanoes.txt",
+          0.736
+        ]
+      ],
+      "dense_score_spread": 0.1556,
+      "hybrid_top1": "tides.txt"
+    },
+    {
+      "question": "What causes molten rock to burst out of a peak?",
+      "expected": "volcanoes.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8073
+        ],
+        [
+          "vaccines.txt",
+          0.7099
+        ],
+        [
+          "bitcoin.txt",
+          0.7039
+        ],
+        [
+          "photosynthesis.txt",
+          0.652
+        ],
+        [
+          "bread.txt",
+          0.6018
+        ],
+        [
+          "volcanoes.txt",
+          0.5368
+        ]
+      ],
+      "dense_score_spread": 0.2705,
+      "hybrid_top1": "bitcoin.txt"
+    },
+    {
+      "question": "Why does dough get bigger when it rests?",
+      "expected": "bread.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8478
+        ],
+        [
+          "vaccines.txt",
+          0.7533
+        ],
+        [
+          "bread.txt",
+          0.7267
+        ],
+        [
+          "bitcoin.txt",
+          0.7214
+        ],
+        [
+          "photosynthesis.txt",
+          0.6953
+        ],
+        [
+          "volcanoes.txt",
+          0.619
+        ]
+      ],
+      "dense_score_spread": 0.2288,
+      "hybrid_top1": "bread.txt"
+    },
+    {
+      "question": "Why does the beach flood and drain each day?",
+      "expected": "tides.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8478
+        ],
+        [
+          "vaccines.txt",
+          0.7533
+        ],
+        [
+          "bread.txt",
+          0.7267
+        ],
+        [
+          "bitcoin.txt",
+          0.7214
+        ],
+        [
+          "photosynthesis.txt",
+          0.6953
+        ],
+        [
+          "volcanoes.txt",
+          0.619
+        ]
+      ],
+      "dense_score_spread": 0.2288,
+      "hybrid_top1": "tides.txt"
+    },
+    {
+      "question": "How does a jab protect people from disease?",
+      "expected": "vaccines.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8916
+        ],
+        [
+          "bitcoin.txt",
+          0.846
+        ],
+        [
+          "vaccines.txt",
+          0.8192
+        ],
+        [
+          "photosynthesis.txt",
+          0.8106
+        ],
+        [
+          "bread.txt",
+          0.8053
+        ],
+        [
+          "volcanoes.txt",
+          0.736
+        ]
+      ],
+      "dense_score_spread": 0.1556,
+      "hybrid_top1": "tides.txt"
+    },
+    {
+      "question": "How are new cryptocurrency tokens created?",
+      "expected": "bitcoin.txt",
+      "dense_top1": "tides.txt",
+      "dense_ranking": [
+        [
+          "tides.txt",
+          0.8916
+        ],
+        [
+          "bitcoin.txt",
+          0.846
+        ],
+        [
+          "vaccines.txt",
+          0.8192
+        ],
+        [
+          "photosynthesis.txt",
+          0.8106
+        ],
+        [
+          "bread.txt",
+          0.8053
+        ],
+        [
+          "volcanoes.txt",
+          0.736
+        ]
+      ],
+      "dense_score_spread": 0.1556,
+      "hybrid_top1": "tides.txt"
+    }
+  ],
+  "llama_server_pooling": [
+    "cls"
+  ],
+  "embed_server_cmdlines": [
+    "/root/.unsloth/llama.cpp/llama-server -m /root/.cache/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B-GGUF/snapshots/370f27d7550e0def9b39c1f16d3fbaa13aa67728/Qwen3-Embedding-0.6B-f16.gguf --host 127.0.0.1 --port 18408 --embedding --pooling cls --fit off -ub 512 -ngl 0",
+    "/root/.unsloth/llama.cpp/llama-server -m /root/.cache/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B-GGUF/snapshots/370f27d7550e0def9b39c1f16d3fbaa13aa67728/Qwen3-Embedding-0.6B-f16.gguf --host 127.0.0.1 --port 42415 --embedding --pooling cls --fit off -ub 512 -ngl 0",
+    "/root/.unsloth/llama.cpp/llama-server -m /root/.cache/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B-GGUF/snapshots/370f27d7550e0def9b39c1f16d3fbaa13aa67728/Qwen3-Embedding-0.6B-f16.gguf --host 127.0.0.1 --port 53371 --embedding --pooling cls --fit off -ub 512 -ngl 0",
+    "/root/.unsloth/llama.cpp/llama-server -m /root/.cache/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B-GGUF/snapshots/370f27d7550e0def9b39c1f16d3fbaa13aa67728/Qwen3-Embedding-0.6B-f16.gguf --host 127.0.0.1 --port 62613 --embedding --pooling cls --fit off -ub 512 -ngl 0"
+  ],
+  "dense_top1_correct": 1,
+  "hybrid_top1_correct": 2,
+  "chat_model": "unsloth/Qwen3-0.6B-GGUF",
+  "chat": {
+    "sources_row_text": "Document Sources 1 tides.txt",
+    "cited_files": [
+      "tides.txt"
+    ],
+    "question": "How does a jab protect people from disease?",
+    "expected": "vaccines.txt",
+    "cited_expected": false
+  }
+}
