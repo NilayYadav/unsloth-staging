@@ -331,3 +331,160 @@ def test_docx_table_vertical_merge_emitted_once(tmp_path):
     text = "\n".join(p.text for p in parsers.parse(str(path)))
     assert text.count("SECTION") == 1  # not repeated on each spanned row
     assert "SECTION | r0" in text and " | r1" in text and " | r2" in text
+
+
+def test_docx_keeps_text_in_content_controls_and_tracked_insertions(tmp_path):
+    # Paragraph.text / iter_inner_content skip w:sdt, w:ins, w:smartTag and w:customXml;
+    # their text must be indexed while tracked deletions stay out.
+    document, docx, parsers = _shared_setup_1()
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    ns = nsdecls("w")
+
+    def sdt(inner):
+        return parse_xml(f"<w:sdt {ns}><w:sdtContent>{inner}</w:sdtContent></w:sdt>")
+
+    body = document.element.body
+    body.insert(len(body) - 1, sdt("<w:p><w:r><w:t>BLOCK-SDT</w:t></w:r></w:p>"))
+    p = document.add_paragraph("Client: ")._p
+    p.append(sdt("<w:r><w:t>INLINE-SDT</w:t></w:r>"))
+    p.append(
+        parse_xml(f'<w:ins {ns} w:id="1" w:author="a"><w:r><w:t> INSERTED</w:t></w:r></w:ins>')
+    )
+    p.append(
+        parse_xml(
+            f'<w:del {ns} w:id="2" w:author="a"><w:r><w:delText>DELETED</w:delText></w:r></w:del>'
+        )
+    )
+    p.append(
+        parse_xml(f'<w:smartTag {ns} w:element="x"><w:r><w:t> TAGGED</w:t></w:r></w:smartTag>')
+    )
+    p.append(
+        parse_xml(f'<w:customXml {ns} w:element="x"><w:r><w:t> CUSTOM</w:t></w:r></w:customXml>')
+    )
+    table = document.add_table(rows = 1, cols = 2)
+    table.cell(0, 0).text = "Key"
+    table.cell(0, 1)._tc.append(sdt("<w:p><w:r><w:t>CELL-SDT</w:t></w:r></w:p>"))
+    path = tmp_path / "controls.docx"
+    document.save(str(path))
+
+    text = "\n".join(pg.text for pg in parsers.parse(str(path)))
+    assert "BLOCK-SDT" in text
+    assert "Client: INLINE-SDT INSERTED TAGGED CUSTOM" in text
+    assert "Key | CELL-SDT" in text
+    assert "DELETED" not in text
+
+
+def test_docx_keeps_rows_and_cells_wrapped_in_content_controls(tmp_path):
+    # Word cover pages and repeating sections wrap whole w:tc / w:tr elements in w:sdt.
+    document, docx, parsers = _shared_setup_1()
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    ns = nsdecls("w")
+    table = document.add_table(rows = 1, cols = 2)
+    table.cell(0, 0).text = "Name"
+    tr = table.rows[0]._tr
+    tc = table.cell(0, 1)._tc
+    tr.remove(tc)
+    tr.append(
+        parse_xml(
+            f"<w:sdt {ns}><w:sdtContent><w:tc><w:p><w:r><w:t>CELL-WRAPPED</w:t></w:r></w:p></w:tc>"
+            "</w:sdtContent></w:sdt>"
+        )
+    )
+    table._tbl.append(
+        parse_xml(
+            f"<w:sdt {ns}><w:sdtContent><w:sdt><w:sdtContent><w:tr>"
+            "<w:tc><w:p><w:r><w:t>ROW-A</w:t></w:r></w:p></w:tc>"
+            "<w:tc><w:p><w:r><w:t>ROW-B</w:t></w:r></w:p></w:tc>"
+            "</w:tr></w:sdtContent></w:sdt></w:sdtContent></w:sdt>"
+        )
+    )
+    path = tmp_path / "wrapped.docx"
+    document.save(str(path))
+
+    text = "\n".join(pg.text for pg in parsers.parse(str(path)))
+    assert "Name | CELL-WRAPPED" in text
+    assert "ROW-A | ROW-B" in text
+
+
+def test_docx_skips_placeholder_text_and_keeps_field_and_bidi_runs(tmp_path):
+    # An unfilled content control stores Word's prompt with w:showingPlcHdr; it is not the field's value.
+    document, docx, parsers = _shared_setup_1()
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    ns = nsdecls("w")
+
+    def sdt(props, inner):
+        return parse_xml(
+            f"<w:sdt {ns}><w:sdtPr>{props}</w:sdtPr><w:sdtContent>{inner}</w:sdtContent></w:sdt>"
+        )
+
+    body = document.element.body
+    body.insert(
+        len(body) - 1,
+        sdt("<w:showingPlcHdr/>", "<w:p><w:r><w:t>BLOCK-PROMPT</w:t></w:r></w:p>"),
+    )
+    p = document.add_paragraph("Name: ")._p
+    p.append(sdt("<w:showingPlcHdr/>", "<w:r><w:t>Click or tap here to enter text.</w:t></w:r>"))
+    p = document.add_paragraph("Client: ")._p
+    p.append(sdt('<w:showingPlcHdr w:val="0"/>', "<w:r><w:t>ACME</w:t></w:r>"))
+    p = document.add_paragraph("Ref ")._p
+    p.append(
+        parse_xml(
+            f'<w:fldSimple {ns} w:instr=" MERGEFIELD Name "><w:r><w:t>FIELD</w:t></w:r></w:fldSimple>'
+        )
+    )
+    p.append(parse_xml(f'<w:dir {ns} w:val="rtl"><w:r><w:t> RTL</w:t></w:r></w:dir>'))
+    table = document.add_table(rows = 1, cols = 2)
+    table.cell(0, 0).text = "Owner"
+    table.cell(0, 1)._tc.append(
+        sdt("<w:showingPlcHdr/>", "<w:p><w:r><w:t>CELL-PROMPT</w:t></w:r></w:p>")
+    )
+    path = tmp_path / "placeholders.docx"
+    document.save(str(path))
+
+    text = "\n".join(pg.text for pg in parsers.parse(str(path)))
+    assert "PROMPT" not in text and "Click or tap" not in text
+    assert "Client: ACME" in text
+    assert "Ref FIELD RTL" in text
+    assert "Owner | " in text
+
+
+def test_docx_skips_placeholder_rows_and_cells_but_keeps_columns(tmp_path):
+    # An unfilled control wrapping a whole w:tc / w:tr keeps its slot but not its prompt text.
+    document, docx, parsers = _shared_setup_1()
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    ns = nsdecls("w")
+    table = document.add_table(rows = 1, cols = 3)
+    table.cell(0, 0).text = "Name"
+    table.cell(0, 2).text = "END"
+    tr = table.rows[0]._tr
+    tc = table.cell(0, 1)._tc
+    idx = tr.index(tc)
+    tr.remove(tc)
+    tr.insert(
+        idx,
+        parse_xml(
+            f"<w:sdt {ns}><w:sdtPr><w:showingPlcHdr/></w:sdtPr><w:sdtContent>"
+            "<w:tc><w:p><w:r><w:t>CELL-PROMPT</w:t></w:r></w:p></w:tc></w:sdtContent></w:sdt>"
+        ),
+    )
+    table._tbl.append(
+        parse_xml(
+            f"<w:sdt {ns}><w:sdtPr><w:showingPlcHdr/></w:sdtPr><w:sdtContent><w:tr>"
+            "<w:tc><w:p><w:r><w:t>ROW-PROMPT</w:t></w:r></w:p></w:tc>"
+            "<w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr></w:sdtContent></w:sdt>"
+        )
+    )
+    path = tmp_path / "placeholder_cells.docx"
+    document.save(str(path))
+
+    text = "\n".join(pg.text for pg in parsers.parse(str(path)))
+    assert "PROMPT" not in text
+    assert "Name |  | END" in text
