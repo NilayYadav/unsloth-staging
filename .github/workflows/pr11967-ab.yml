@@ -1,0 +1,46 @@
+name: "PR 11967 A/B (eval event keeps elapsed)"
+on:
+  push:
+    branches: [pr-11967-pr11967-20260925213538-ci]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ab:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r studio/backend/requirements/studio.txt
+          pip install python-multipart aiofiles sqlalchemy cryptography psutil pyyaml jinja2 requests 'numpy<3' pytest httpx
+      - name: "B (fix): new test passes"
+        working-directory: studio/backend
+        run: python -m pytest tests/test_training_mlx_eval_progress.py -v --tb=short
+      - name: "A (fix reverted): final-eval test must fail on elapsed_seconds"
+        shell: bash
+        run: |
+          git apply -R .github/pr11967/fix.patch
+          git diff --stat
+          cd studio/backend
+          set +e
+          python -m pytest tests/test_training_mlx_eval_progress.py -v --tb=short 2>&1 | tee ../../a.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "A rc=$rc"
+          test "$rc" -ne 0
+          grep -q "FAILED tests/test_training_mlx_eval_progress.py::test_final_mlx_eval_event_keeps_elapsed_and_run_duration" ../../a.log
+          grep -q "assert None == 12.0" ../../a.log
+          grep -q "PASSED tests/test_training_mlx_eval_progress.py::test_explicit_none_still_clears_progress_fields" ../../a.log
+          echo "REPRO OK: base drops elapsed_seconds on the MLX eval event"
