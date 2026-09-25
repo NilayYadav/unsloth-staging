@@ -34,13 +34,12 @@ jobs:
         run: git log --oneline -3; git diff --stat origin/main...HEAD 2>/dev/null || true
       - name: PR regression tests (registered HF_HOME)
         run: |
+          python -m pytest -q --tb=short --timeout=300 -rA "hub/tests/test_model_services.py::test_local_inventory_lists_a_registered_hf_home"
           python -m pytest -q --tb=short --timeout=300 -rA \
-            "hub/tests/test_model_services.py::test_local_inventory_lists_a_registered_hf_home" \
             "tests/test_local_model_format.py::test_compat_inventory_lists_a_registered_hf_home" \
             "tests/test_openai_auto_switch.py::test_build_index_covers_legacy_default_lmstudio_and_custom_roots"
       - name: Full changed test files
         if: always()
         run: |
-          python -m pytest -q --tb=short --timeout=300 \
-            hub/tests/test_model_services.py tests/test_local_model_format.py tests/test_openai_auto_switch.py \
-            tests/test_scan_folder_health.py tests/test_cached_gguf_routes.py
+          python -m pytest -q --tb=short --timeout=300 hub/tests/test_model_services.py
+          python -m pytest -q --tb=short --timeout=300 tests/test_scan_folder_health.py tests/test_local_model_format.py tests/test_cached_gguf_routes.py tests/test_openai_auto_switch.py
