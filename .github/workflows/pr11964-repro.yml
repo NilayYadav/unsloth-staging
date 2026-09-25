@@ -1,0 +1,54 @@
+# Disposable PR 11964 A/B repro. Delete after validation.
+name: "PR 11964 completions echo/suffix/best_of A/B"
+
+on:
+  push:
+    branches:
+      - "pr-11964-pr11964-20260925-ci"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ab:
+    name: "Studio /v1/completions (${{ matrix.side }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        side: [base, head]
+    env:
+      UNSLOTH_STUDIO_HOME: ${{ github.workspace }}/.studio-live/home
+      STUDIO_ARTIFACT_DIR: ${{ github.workspace }}/.studio-live/artifacts/${{ matrix.side }}
+      PROBE_SIDE: ${{ matrix.side }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Revert only the implementation to upstream main (base side)
+        if: matrix.side == 'base'
+        run: |
+          git checkout 614f2d5af15fe45815f7976b2675e1dfebcc2894 -- studio/backend/routes/inference.py
+          ! grep -q "_raise_ignored_completions_params" studio/backend/routes/inference.py
+      - name: Confirm implementation under test
+        run: grep -c "_raise_ignored_completions_params" studio/backend/routes/inference.py || true
+      - name: Install Studio from this checkout
+        run: |
+          mkdir -p "$UNSLOTH_STUDIO_HOME"
+          python -m pip install "httpx>=0.27,<1"
+          ./install.sh --local --no-torch
+      - name: Run A/B probe
+        run: python .github/scripts/pr11964_probe.py
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: pr11964-${{ matrix.side }}
+          path: ${{ github.workspace }}/.studio-live/artifacts
+          if-no-files-found: warn
