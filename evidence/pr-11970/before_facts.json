@@ -1,0 +1,13 @@
+{
+  "side": "before",
+  "registered_folder": "<tmp>/existing_hf_home",
+  "repo": "unsloth/SmolLM2-135M-Instruct-GGUF",
+  "add_scan_folder_http": 201,
+  "inventory_rows_total": 0,
+  "smollm2_rows": 0,
+  "smollm2_row": null,
+  "scan_folder_status": [
+    "ok"
+  ],
+  "ui_row_visible": false
+}
