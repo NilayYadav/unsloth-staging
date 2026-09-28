@@ -2295,6 +2295,7 @@ export function ChatPage({
   const residentCheckpoint = useChatRuntimeStore(
     (state) => state.residentCheckpoint,
   );
+  const loadedCount = useChatRuntimeStore((state) => state.loadedModels.length);
   const loadedContextLength = useChatRuntimeStore(
     (state) => state.loadedContextLength,
   );
@@ -2409,6 +2410,7 @@ export function ChatPage({
     selectModel,
     loadNpuModel,
     ejectModel,
+    ejectAllModels,
     cancelLoading,
     loadingModel,
     loadProgress,
@@ -3543,13 +3545,25 @@ export function ChatPage({
       handleCheckpointChange,
     ],
   );
-  const handleEject = useCallback(() => {
+  const handleEject = useCallback(
+    (modelId?: string) => {
+      void (async () => {
+        const ejectedSelected =
+          !modelId || modelId === inferenceParams.checkpoint;
+        if ((await ejectModel(modelId)) && ejectedSelected) {
+          resetArtifacts();
+        }
+      })();
+    },
+    [ejectModel, inferenceParams.checkpoint, resetArtifacts],
+  );
+  const handleEjectAll = useCallback(() => {
     void (async () => {
-      if (await ejectModel()) {
+      if (await ejectAllModels()) {
         resetArtifacts();
       }
     })();
-  }, [ejectModel, resetArtifacts]);
+  }, [ejectAllModels, resetArtifacts]);
 
   // Pins the picker open so a stray click cannot dismiss the step under it. Tour steps only: the
   // effect below shuts anything left pinned once the tour is gone.
@@ -4164,6 +4178,8 @@ export function ChatPage({
                 onConfigRequestAdopted={handleModelConfigRequestAdopted}
                 onValueChange={handleCheckpointChange}
                 onEject={handleEject}
+                onEjectAll={handleEjectAll}
+                loadedCount={loadedCount}
                 onFoldersChange={refreshLocalModels}
                 onModelsChange={refreshModelLists}
                 deleteDisabled={modelOperationInProgress}
