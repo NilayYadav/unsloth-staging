@@ -207,8 +207,7 @@ BROWSER_SELECT_TOOL = {
         "name": "browser_select",
         "description": (
             "Choose an option in a dropdown, or set a checkbox or radio button, by ref. value is "
-            'the option text, or "true"/"false" for a checkbox or radio button, whose own ref '
-            "is the one to pass."
+            'the option text, or "true"/"false" for a checkbox.'
         ),
         "parameters": {
             "type": "object",
@@ -480,10 +479,7 @@ def _validated_request(name: str, arguments: dict, website_policy: Optional[dict
             request["text"] = text
             request["submit"] = arguments.get("submit") is True
         if name == "browser_select":
-            value = arguments.get("value")
-            if isinstance(value, bool):
-                value = "true" if value else "false"
-            request["value"] = ("" if value is None else str(value))[:500]
+            request["value"] = str(arguments.get("value") or "")[:500]
         return request
     if name == "browser_scroll":
         direction = str(arguments.get("direction") or "down").lower()
