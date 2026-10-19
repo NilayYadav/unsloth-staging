@@ -171,7 +171,6 @@ function BookmarkEditor({
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
-        event.stopPropagation();
         onClose();
       }}
     >
