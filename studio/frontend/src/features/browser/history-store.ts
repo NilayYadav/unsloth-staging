@@ -70,12 +70,7 @@ function deferredLocalStorage(): StateStorage {
     }
     pending.clear();
   };
-  if (typeof window !== "undefined") {
-    window.addEventListener("pagehide", flush);
-    window.addEventListener("storage", (event) => {
-      if (event.key !== null) pending.delete(event.key);
-    });
-  }
+  if (typeof window !== "undefined") window.addEventListener("pagehide", flush);
   return {
     getItem: (name) => pending.get(name) ?? localStorage.getItem(name),
     setItem: (name, value) => {
@@ -197,11 +192,6 @@ export const useBrowserHistoryStore = create<BrowserHistoryState>()(
     },
   ),
 );
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (event) => {
-    if (event.key === useBrowserHistoryStore.persist.getOptions().name) void useBrowserHistoryStore.persist.rehydrate();
-  });
-}
 
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 

@@ -63,8 +63,3 @@ export const usePinnedPagesStore = create<PinnedPagesState>()(
     },
   ),
 );
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (event) => {
-    if (event.key === usePinnedPagesStore.persist.getOptions().name) void usePinnedPagesStore.persist.rehydrate();
-  });
-}

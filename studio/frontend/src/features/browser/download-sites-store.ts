@@ -33,8 +33,3 @@ export const useDownloadSitesStore = create<DownloadSitesState>()(
     },
   ),
 );
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (event) => {
-    if (event.key === useDownloadSitesStore.persist.getOptions().name) void useDownloadSitesStore.persist.rehydrate();
-  });
-}
