@@ -1470,7 +1470,6 @@ class InferenceOrchestrator:
         prompt_ids: Optional[list] = None,
         penalty_window: Optional[int] = None,
         grammar: Optional[str] = None,
-        n_probs: int = 0,
     ) -> dict:
         """Build the 'generate' command shared by the locked and dispatched paths."""
         cmd = {
@@ -1525,8 +1524,6 @@ class InferenceOrchestrator:
             cmd["penalty_window"] = penalty_window
         if grammar is not None:
             cmd["grammar"] = grammar
-        if n_probs:
-            cmd["n_probs"] = int(n_probs)
         return cmd
 
     def _consume_token_stream(
@@ -1778,7 +1775,6 @@ class InferenceOrchestrator:
         prompt_ids: Optional[list] = None,
         penalty_window: Optional[int] = None,
         grammar: Optional[str] = None,
-        n_probs: int = 0,
     ) -> Generator[Any, None, None]:
         """Dispatched generation, sending the command without holding _gen_lock. Uses a per-request
         mailbox for tokens so two compare-mode requests can be queued at once. The subprocess
@@ -1839,7 +1835,6 @@ class InferenceOrchestrator:
             prompt_ids = prompt_ids,
             penalty_window = penalty_window,
             grammar = grammar,
-            n_probs = n_probs,
         )
 
         mailbox = _WorkerMailbox(self._proc)
@@ -3600,7 +3595,6 @@ class InferenceOrchestrator:
         prompt_ids: Optional[list] = None,
         penalty_window: Optional[int] = None,
         grammar: Optional[str] = None,
-        n_probs: int = 0,
     ) -> Generator[Any, None, None]:
         """Inner generation logic: sends the command to the subprocess and yields tokens. Serialized
         by _gen_lock (one generation at a time) so concurrent readers don't consume each other's
@@ -3608,7 +3602,7 @@ class InferenceOrchestrator:
         managed = getattr(self, "_managed_engine", None)
         if managed is not None:
             kwargs = dict(locals())
-            for key in ("self", "managed", "kwargs", "diffusion_frames", "n_probs"):
+            for key in ("self", "managed", "kwargs", "diffusion_frames"):
                 kwargs.pop(key, None)
             from .engine_transport import EngineHTTPError
 
@@ -3667,7 +3661,6 @@ class InferenceOrchestrator:
                 prompt_ids = prompt_ids,
                 penalty_window = penalty_window,
                 grammar = grammar,
-                n_probs = n_probs,
             )
             return
 
@@ -3713,7 +3706,6 @@ class InferenceOrchestrator:
                 prompt_ids = prompt_ids,
                 penalty_window = penalty_window,
                 grammar = grammar,
-                n_probs = n_probs,
             )
 
             read_one, drain, release_mailbox = self._direct_reader(request_id, cancel_event)
