@@ -42,6 +42,38 @@ function runsCode(name: string): boolean {
   return DANGEROUS.has(extension.toLowerCase()) || DANGEROUS.has(extension.toUpperCase().toLowerCase());
 }
 
+// A name with no extension gets the one its content type means, so a program sent as `update` is asked about and saved as `update.exe`.
+const PROGRAM_TYPES: Record<string, string> = {
+  "application/x-msdownload": "exe",
+  "application/x-msdos-program": "exe",
+  "application/x-ms-dos-executable": "exe",
+  "application/vnd.microsoft.portable-executable": "exe",
+  "application/x-dosexec": "exe",
+  "application/x-msi": "msi",
+  "application/x-ms-installer": "msi",
+  "application/x-apple-diskimage": "dmg",
+  "application/x-sh": "sh",
+  "application/x-shellscript": "sh",
+  "text/x-sh": "sh",
+  "application/java-archive": "jar",
+  "application/x-java-archive": "jar",
+  "application/vnd.debian.binary-package": "deb",
+  "application/x-debian-package": "deb",
+  "application/x-rpm": "rpm",
+  "application/x-redhat-package-manager": "rpm",
+  "application/hta": "hta",
+  "text/javascript": "js",
+  "application/javascript": "js",
+  "application/x-javascript": "js",
+};
+
+// Browsers drop leading dots (and, on Windows, trailing dots and spaces) before deciding a name has no extension.
+export function withTypeExtension(name: string, contentType: string): string {
+  const extension = PROGRAM_TYPES[contentType.split(";")[0].trim().toLowerCase()];
+  const stem = name.replace(/^\.+/, "").replace(/[. ]+$/, "");
+  return extension && !/\.[^./\\]+$/.test(stem) ? `${name}.${extension}` : name;
+}
+
 /** As the desktop app cleans a name before the cut: controls, bidi controls and reserved characters become
  *  one-byte "_", trailing dots and spaces go. */
 function cleaned(name: string): string {
