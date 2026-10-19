@@ -1242,7 +1242,39 @@ export function installPageAgent(): PageAgent {
     }
     const role = roleOf(el);
     if (role === "checkbox" || role === "radio" || role === "switch") {
-      const on = ["true", "on", "yes", "checked", "1", "check"].includes(value.trim().toLowerCase());
+      const wanted = value.trim().toLowerCase();
+      const onWords = ["true", "on", "yes", "checked", "1", "check"];
+      const offWords = ["false", "off", "no", "unchecked", "0", "uncheck"];
+      // An on/off word never matches a box's HTML value: "false" on value="false" unchecks.
+      const owns = (node: Element) => {
+        // "true" and "false" are state commands even on a control labelled True or False.
+        if (wanted === "true" || wanted === "false") return false;
+        const label = nameOf(node).toLowerCase();
+        if (label && label === wanted) return true;
+        if (onWords.includes(wanted) || offWords.includes(wanted) || !(node instanceof HTMLInputElement)) return false;
+        return Boolean(node.value) && node.value.toLowerCase() === wanted;
+      };
+      const own = owns(el);
+      const on = own || onWords.includes(wanted);
+      // "No" on the Yes radio names its sibling, not an uncheck.
+      const group = (): Element[] => {
+        if (!(el instanceof HTMLInputElement)) {
+          // First role token, as roleOf reads it: role="radiogroup group" is still a radiogroup.
+          let box = el.parentElement;
+          while (box && box.getAttribute("role")?.trim().split(/\s+/)[0] !== "radiogroup") box = box.parentElement;
+          return box ? Array.from(box.querySelectorAll("[role]")).filter((node) => roleOf(node) === "radio") : [];
+        }
+        if (!el.name) return [];
+        // A radio outside its <form> still joins the group through form="id".
+        const root = el.getRootNode() as Document | ShadowRoot;
+        return Array.from(root.querySelectorAll<HTMLInputElement>('input[type="radio"]')).filter(
+          (node) => node.name === el.name && node.form === el.form,
+        );
+      };
+      const sibling = !own && role === "radio" && group().some((node) => node !== el && owns(node));
+      if (sibling || !(on || offWords.includes(wanted))) {
+        return { ok: false, error: `${ref} is a ${role}; value must be "true", "false" or its own label. Pick the ref of the option to choose.` };
+      }
       const current = el instanceof HTMLInputElement ? el.checked : el.getAttribute("aria-checked") === "true";
       if (current && !on && role === "radio") {
         return { ok: false, error: `${ref} is a radio button; select another option in its group instead.` };
