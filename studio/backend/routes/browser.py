@@ -613,6 +613,9 @@ _FRAME_HTML = r"""<!doctype html>
           unlessCancelled(event, () => submitForm(target, submitter));
         }, true);
         HTMLFormElement.prototype.submit = function () { submitForm(this, null); };
+        document.addEventListener("input", (event) => {
+          if (event.isTrusted) post({ type: "typed" });
+        }, true);
 
         const report = () => {
           const icon = document.querySelector("link[rel~='icon'][href], link[rel='shortcut icon'][href], link[rel='apple-touch-icon'][href]");
