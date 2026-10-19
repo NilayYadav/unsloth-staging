@@ -399,17 +399,6 @@ def _host_problem(hostname: str) -> Optional[str]:
     return None
 
 
-def _is_loopback(hostname: str) -> bool:
-    host = hostname.strip("[]").lower()
-    if host == "localhost":
-        return True
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return False
-    return ip == ipaddress.IPv6Address("::1") or (ip.version == 4 and ip.is_loopback)
-
-
 def normalize_navigation_url(raw: Any, website_policy: Optional[dict]) -> str:
     """The http(s) URL to open, or ValueError saying why it may not be opened."""
     from .tools import _validate_and_resolve_host
@@ -423,14 +412,10 @@ def normalize_navigation_url(raw: Any, website_policy: Optional[dict]) -> str:
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
         if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", url) and not re.match(r"^[^:/]+:\d", url):
             raise ValueError("only http and https pages can be opened.")
-        url = url.lstrip("/")
-        url = ("http://" if _is_loopback(urlsplit("//" + url).hostname or "") else "https://") + url
+        url = "https://" + url.lstrip("/")
     allowed, reason, hostname = check_url_access(url, website_policy)
     if not allowed:
         raise ValueError(reason.removeprefix("Blocked: "))
-    # The desktop panel decides: it opens only the local origins the user typed there.
-    if _is_loopback(urlsplit(url).hostname or ""):
-        return url
     problem = _host_problem(urlsplit(url).hostname or "")
     if problem:
         raise ValueError(f"{problem}, and the browser only opens public sites.")
@@ -550,8 +535,7 @@ def format_result(name: str, result: dict, website_policy: Optional[dict]) -> st
     url = _one_line(_clip(result.get("url"), _MAX_URL_CHARS))
     if url.lower().startswith(("http://", "https://")):
         # A followed link or a redirect can land where browser_navigate would refuse to go.
-        host = urlsplit(url).hostname or ""
-        problem = None if _is_loopback(host) else _host_problem(host)
+        problem = _host_problem(urlsplit(url).hostname or "")
         if problem:
             return (
                 f"Error: the page went to {problem}, so its content is withheld. "

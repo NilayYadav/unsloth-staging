@@ -3,7 +3,7 @@
 
 import { isTauri } from "@/lib/api-base";
 import { create } from "zustand";
-import { currentEntry, setNativeWebHistory, useBrowserStore } from "./store";
+import { setNativeWebHistory } from "./store";
 
 /** Whether pages open in native views: in the desktop app where they can use its checking proxy
  *  (not macOS 13 and earlier), the proxied frame otherwise. */
@@ -13,36 +13,6 @@ export async function callNative<T = void>(command: string, args?: Record<string
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(command, args);
 }
-
-const localOrigins = new Map<string, string>();
-
-export async function grantLocalOrigin(tabId: string, url: string): Promise<void> {
-  await callNative("browser_view_grant", { tabId, url });
-  if (!useBrowserStore.getState().tabs.some((tab) => tab.id === tabId)) {
-    await callNative("browser_view_close", { tabId, forgetLocal: true });
-    return;
-  }
-  localOrigins.set(tabId, new URL(url).origin);
-}
-
-export function localOriginGranted(tabId: string, url: string): boolean {
-  try {
-    return localOrigins.get(tabId) === new URL(url).origin;
-  } catch {
-    return false;
-  }
-}
-
-useBrowserStore.subscribe((state) => {
-  for (const tabId of localOrigins.keys()) {
-    const tab = state.tabs.find((tab) => tab.id === tabId);
-    const entry = tab && currentEntry(tab);
-    if (entry?.kind === "web" && localOriginGranted(tabId, entry.url)) continue;
-    localOrigins.delete(tabId);
-    // A public page drops the local grant too.
-    if (entry?.kind !== "web") void callNative("browser_view_close", { tabId, forgetLocal: true }).catch(() => undefined);
-  }
-});
 
 // Here rather than with the views, which load with the panel: navigation needs it before then.
 if (isTauri) {
@@ -55,6 +25,4 @@ if (isTauri) {
     .catch(() => undefined);
 }
 
-import { onNativeViewsClosed } from "@/lib/native-browser-clear";
-onNativeViewsClosed(() => localOrigins.clear());
 export { clearNativeBrowsingData, nativeClearing, onNativeViewsClosed } from "@/lib/native-browser-clear";

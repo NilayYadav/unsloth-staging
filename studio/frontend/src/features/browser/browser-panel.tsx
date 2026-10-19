@@ -102,7 +102,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { fileNameFromUrl, hostOf, isLoopbackUrl, resolveAddress } from "./address";
+import { fileNameFromUrl, hostOf, resolveAddress } from "./address";
 import { OtherSurfaceError, canPrintFrames, printPage, screenshotPage } from "./capture";
 import { canScreenshot } from "./screenshot-support";
 import { stageEditsPrompt } from "./stage-edits";
@@ -143,7 +143,6 @@ import {
   startNativeViews,
   useNativeBrowser,
 } from "./native-view";
-import { grantLocalOrigin, localOriginGranted } from "./native-support";
 import { type BookmarksToolbarMode, useBrowserPrefsStore } from "./prefs-store";
 import {
   type BrowserEntry,
@@ -653,9 +652,7 @@ function TabStrip({
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTabId;
-          const entry = currentEntry(tab);
-          const title = tabTitle(tab, entry);
-          const local = entry.kind === "web" && !tab.nativeError && localOriginGranted(tab.id, tab.displayUrl ?? entry.url);
+          const title = tabTitle(tab, currentEntry(tab));
           return (
             <TabContextMenu key={tab.id} tab={tab}>
               <div
@@ -690,11 +687,6 @@ function TabStrip({
                     {title}
                   </span>
                 )}
-                {local ? (
-                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--foreground)_calc(8%*var(--contrast-wash-gain,1)),transparent)] px-1.5 text-ui-10 font-medium leading-4 text-muted-foreground">
-                    {t("browser.local")}
-                  </span>
-                ) : null}
                 {tab.muted ? (
                   <button
                     type="button"
@@ -796,10 +788,7 @@ function AddressBar({
         event.preventDefault();
         const url = resolveAddress(value, engine);
         if (!url || !tab) return;
-        const open = () => useBrowserStore.getState().navigate(tab.id, { url });
-        // Typing a local address is what lets it open: never a link, a redirect or the agent.
-        if (useNativeBrowser.getState().enabled && isLoopbackUrl(url)) void grantLocalOrigin(tab.id, url).then(open, open);
-        else open();
+        useBrowserStore.getState().navigate(tab.id, { url });
         setEditing(false);
         inputRef.current?.blur();
       }}
