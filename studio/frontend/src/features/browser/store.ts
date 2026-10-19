@@ -89,7 +89,6 @@ export type BrowserTab = {
   nativeError: string | null;
   /** The proxied page failed to load, so an error shows instead of its frame. */
   pageError?: boolean;
-  typedAt?: number;
   /** The name the reader gave the tab; kept as it navigates. */
   customTitle: string | null;
   muted: boolean;
@@ -357,7 +356,7 @@ type BrowserState = {
     patch: Partial<
       Pick<
         BrowserTab,
-        "title" | "favicon" | "documentType" | "displayUrl" | "loading" | "nativeHistory" | "nativeError" | "pageError" | "typedAt"
+        "title" | "favicon" | "documentType" | "displayUrl" | "loading" | "nativeHistory" | "nativeError" | "pageError"
       >
     >,
   ) => void;
@@ -422,7 +421,6 @@ function pushEntry(tab: BrowserTab, entry: BrowserEntry, replace = false): Brows
     openKey: null,
     nativeError: null,
     pageError: false,
-    typedAt: undefined,
     zoom,
   };
 }
@@ -441,7 +439,6 @@ function moveTo(tab: BrowserTab, index: number): BrowserTab {
     openKey: entry.kind === "file" ? (entry.openKey ?? null) : null,
     nativeError: null,
     pageError: false,
-    typedAt: undefined,
   };
 }
 
@@ -729,7 +726,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => {
       set((state) => ({
         tabs: patchTab(state.tabs, tabId, (tab) => {
           const moved = routerEntry(tab);
-          if (!moved) return { ...tab, reloadKey: tab.reloadKey + 1, typedAt: undefined };
+          if (!moved) return { ...tab, reloadKey: tab.reloadKey + 1 };
           // Swapped in place, as a browser's reload: Forward keeps its pages.
           const next = pushEntry(tab, moved, true);
           return { ...next, history: [...next.history, ...tab.history.slice(tab.index + 1)], reloadKey: tab.reloadKey + 1 };
