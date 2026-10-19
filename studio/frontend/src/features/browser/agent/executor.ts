@@ -12,7 +12,8 @@ import { isTauri } from "@/lib/api-base";
 import { captureHiddenPage, screenshotPage } from "../capture";
 import { useBrowserHistoryStore } from "../history-store";
 import { hasNativeView, keepInBackground, nativeAction, releaseBackground, whenViewOpen } from "../native-view";
-import { callNative, useNativeBrowser } from "../native-support";
+import { isLoopbackUrl } from "../address";
+import { callNative, localOriginGranted, useNativeBrowser } from "../native-support";
 import { requestFrameAgent } from "../page-frame";
 import { browserPanelAvailable } from "../panel-availability";
 import { type BrowserTab, chatKeyOfThread, currentEntry, onChatAdopted, useBrowserStore } from "../store";
@@ -581,10 +582,22 @@ async function observe(tab: BrowserTab, context: Run, note?: string, op: Record<
   };
 }
 
+function grantedLocalTab(url: string, chat: string): BrowserTab | undefined {
+  return useBrowserStore.getState().tabs.find((tab) => tab.chat === chat && localOriginGranted(tab.id, url));
+}
+
 async function open(url: string, context: Run): Promise<BrowserTab | null> {
   const store = useBrowserStore.getState();
-  const existing = agentTab(context);
+  const agent = agentTab(context);
+  const existing = isLoopbackUrl(url)
+    ? grantedLocalTab(url, context.session.chat)
+    : agent && !localOriginGranted(agent.id, tabUrl(agent)) ? agent : undefined;
   if (existing) {
+    if (agentChat(context.session.chat).tabId !== existing.id) {
+      patchAgentChat(context.session.chat, { tabId: existing.id });
+      context.session.trail = [];
+      context.session.at = -1;
+    }
     store.navigate(existing.id, { url }, { replace: false });
     showTab(existing, context);
     return waitForLoad(existing.id, context.signal);
@@ -651,6 +664,15 @@ async function perform(action: BrowserAction, context: Run): Promise<Result> {
 
   if (action.op === "navigate") {
     const url = action.url ?? "";
+    if (isLoopbackUrl(url) && !grantedLocalTab(url, chat)) {
+      const { host } = new URL(url);
+      return {
+        ok: false,
+        error: useNativeBrowser.getState().enabled
+          ? `${host} is on the user's computer, and the browser panel opens a local address only in the tab where the user types it in this chat's address bar. Ask the user to open it there first.`
+          : `${host} is a local address, and the browser only opens public sites.`,
+      };
+    }
     const gate = gateNavigation(url, navigationContext(action, context));
     const refused = await pass(gate, context);
     if (refused) return { ok: false, error: refused };
