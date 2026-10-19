@@ -196,6 +196,15 @@ test("a menu over a layered page neither captures nor hides it, and owns its inp
     if (tabId) useBrowserStore.getState().setZoom(tabId, 1.5);
     await frame();
     assert.ok(calls.some(({ command, args }) => command === "browser_view_zoom" && args?.zoom === 1.5));
+    // a page opened in a local origin's own view keeps the tab's zoom
+    if (tabId) {
+      const before = calls.length;
+      useBrowserStore.getState().navigate(tabId, { url: "http://localhost:7860/" }, { replace: false });
+      await frame();
+      const after = calls.slice(before).map(({ command, args }) => (command === "browser_view_zoom" ? args?.zoom : command));
+      const navigated = after.indexOf("browser_view_navigate");
+      assert.ok(navigated >= 0 && after.indexOf(1.5, navigated) > navigated, JSON.stringify(after));
+    }
 
     // a menu away from the page owns it too, so a click there closes the menu; a hover card doesn't
     blocking.length = 0;
@@ -341,4 +350,35 @@ test("a background page's popup opens in its own chat, and a page that fails to 
   assert.equal(useBrowserStore.getState().tabs.find((tab) => tab.id === failing)?.nativeError, null);
   releaseBackground(failing);
   releaseBackground(tabId);
+});
+
+test("a page whose protections fail shows an error, and Try again opens a new view instead of reusing it", async () => {
+  const store = useBrowserStore.getState();
+  store.openUrl("https://unprotected.example/");
+  const stop = startNativeViews();
+  try {
+    await frame();
+    await frame();
+    const tabId = useBrowserStore.getState().activeTabId ?? "";
+    assert.ok(calls.some(({ command, args }) => command === "browser_view_show" && args?.tabId === tabId));
+    const before = calls.length;
+    const listener = (globalThis as { nativeViewListener?: (event: { payload: unknown }) => void }).nativeViewListener;
+    listener?.({ payload: { kind: "failed", tabId, error: "the page's protections couldn't be set up, so it wasn't opened" } });
+    const failed = useBrowserStore.getState().tabs.find((tab) => tab.id === tabId);
+    assert.equal(failed?.nativeError, "the page's protections couldn't be set up, so it wasn't opened");
+    assert.equal(failed?.loading, false);
+    assert.ok(calls.slice(before).some(({ command, args }) => command === "browser_view_close" && args?.tabId === tabId));
+    await frame();
+
+    const retryFrom = calls.length;
+    useBrowserStore.getState().updateTab(tabId, { nativeError: null });
+    useBrowserStore.getState().reload(tabId);
+    await frame();
+    await frame();
+    const retried = calls.slice(retryFrom).filter(({ args }) => args?.tabId === tabId).map(({ command }) => command);
+    assert.ok(retried.includes("browser_view_show"), retried.join(","));
+    assert.ok(!retried.includes("browser_view_navigate") && !retried.includes("browser_view_action"), retried.join(","));
+  } finally {
+    stop();
+  }
 });

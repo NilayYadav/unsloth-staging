@@ -46,6 +46,7 @@ type NativeEvent =
   | { kind: "history"; tabId: string; canGoBack: boolean; canGoForward: boolean; icon: string | null }
   | { kind: "newTab"; tabId: string; url: string }
   | { kind: "external"; tabId: string; url: string }
+  | { kind: "failed"; tabId: string; error: string }
   | {
       kind: "download";
       tabId: string;
@@ -96,6 +97,13 @@ function error(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
 
+function nativeErrorText(message: string): string {
+  if (/public web/i.test(message)) return t("browser.native.blocked");
+  if (/local addresses/i.test(message)) return t("browser.native.blockedLocal");
+  if (/Studio's own/i.test(message)) return t("browser.native.studioAddress");
+  return message;
+}
+
 // The view's history closes with it: keep the page it reached as a tab entry, for Back.
 function keepReachedPage(tabId: string): void {
   const store = useBrowserStore.getState();
@@ -119,7 +127,7 @@ function closeView(tabId: string): void {
   recency = recency.filter((id) => id !== tabId);
   if (parkedView === tabId) parkedView = null;
   background = background.filter((id) => id !== tabId);
-  void call("browser_view_close", { tabId }).catch(() => undefined);
+  void call("browser_view_close", { tabId, forgetLocal: !useBrowserStore.getState().tabs.some((tab) => tab.id === tabId) }).catch(() => undefined);
 }
 
 let listening = false;
@@ -206,6 +214,11 @@ function onNativeEvent(event: NativeEvent): void {
     return;
   }
   if (!tab) return;
+  if (event.kind === "failed") {
+    closeView(tab.id);
+    store.updateTab(tab.id, { loading: false, nativeError: event.error });
+    return;
+  }
   const entry = currentEntry(tab);
   if (entry.kind !== "web") return;
   const history = useBrowserHistoryStore.getState();
@@ -790,6 +803,7 @@ async function openInBackground(tabId: string, url: string, key: number): Promis
   try {
     if (views.has(tabId)) {
       await call("browser_view_navigate", { tabId, url });
+      zooms.delete(tabId);
     } else {
       const bounds = viewBounds.get(tabId) ??
         shownBounds ?? { x: 0, y: 0, width: Math.round(window.innerWidth / 2), height: window.innerHeight, viewportWidth: window.innerWidth };
@@ -961,7 +975,7 @@ async function applyView(desired: Desired): Promise<void> {
   const started = generation;
   const stale = () => {
     if (started === generation) return false;
-    void call("browser_view_close", { tabId }).catch(() => undefined);
+    void call("browser_view_close", { tabId, forgetLocal: !useBrowserStore.getState().tabs.some((tab) => tab.id === tabId) }).catch(() => undefined);
     return true;
   };
   try {
@@ -980,6 +994,7 @@ async function applyView(desired: Desired): Promise<void> {
     // record the entry after navigation succeeds so failures remain retryable.
     if (existed && loaded !== entry) {
       await call("browser_view_navigate", { tabId, url });
+      zooms.delete(tabId);
       if (stale()) return;
     }
     views.set(tabId, entry);
@@ -992,7 +1007,7 @@ async function applyView(desired: Desired): Promise<void> {
     if (stale()) return;
     useBrowserStore.getState().updateTab(tabId, {
       loading: false,
-      nativeError: /public web/i.test(error(cause)) ? t("browser.native.blocked") : error(cause),
+      nativeError: nativeErrorText(error(cause)),
     });
   }
   recency = [...recency.filter((id) => id !== tabId), tabId];
