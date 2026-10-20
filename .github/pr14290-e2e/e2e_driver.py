@@ -433,6 +433,33 @@ def win_diag(path):
         log("win diag failed", error)
 
 
+def matching_edgedriver(art):
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | "
+          "ForEach-Object { $_.ExecutablePath } | Select-Object -First 1")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output = True, text = True, timeout = 60).stdout.strip()
+    version = Path(out).parent.name if out else ""
+    log("running WebView2 runtime:", out, version)
+    if not version or not version[0].isdigit():
+        return None
+    dest = art.parent / f"edgedriver-{version}"
+    exe = dest / "msedgedriver.exe"
+    if exe.is_file():
+        return str(exe)
+    import zipfile
+    dest.mkdir(parents = True, exist_ok = True)
+    for base in ("https://msedgedriver.microsoft.com", "https://msedgedriver.azureedge.net"):
+        try:
+            with urllib.request.urlopen(f"{base}/{version}/edgedriver_win64.zip", timeout = 120) as response:
+                (dest / "d.zip").write_bytes(response.read())
+            zipfile.ZipFile(dest / "d.zip").extractall(dest)
+            if exe.is_file():
+                log("downloaded msedgedriver", version, "from", base)
+                return str(exe)
+        except Exception as error:
+            log("msedgedriver download failed", base, error)
+    return None
+
+
 def win_resize(width, height):
     ps = (
         'Add-Type @"\nusing System; using System.Runtime.InteropServices;\n'
@@ -669,7 +696,9 @@ def main():
             version = cdp_ready(attach, 60)
             log("cdp version (late)", json.dumps(version)[:400])
         (art / "cdp-targets-boot.json").write_text(json.dumps(cdp_targets(attach), indent = 2), encoding = "utf-8")
-        drv = subprocess.Popen([args.native_driver, f"--port={port}", "--verbose", f"--log-path={art / 'msedgedriver.log'}"],
+        native_driver = matching_edgedriver(art) or args.native_driver
+        log("msedgedriver", native_driver)
+        drv = subprocess.Popen([native_driver, f"--port={port}", "--verbose", f"--log-path={art / 'msedgedriver.log'}"],
                                stdout = drv_log, stderr = subprocess.STDOUT, **kwargs)
     else:
         drv = subprocess.Popen([tauri_driver, "--port", str(port), "--native-port", str(native_port),
@@ -712,6 +741,7 @@ def main():
         except Exception:
             pass
         if attach:
+            win_diag(art / "webview2-procs-end.txt")
             (art / "cdp-targets-end.json").write_text(json.dumps(cdp_targets(attach), indent = 2), encoding = "utf-8")
         for proc in [p for p in (drv, site_proc, app_proc) if p]:
             try:

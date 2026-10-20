@@ -160,6 +160,17 @@ jobs:
           & "$dir\msedgedriver.exe" --version
           "NATIVE_DRIVER=$dir\msedgedriver.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
+      - name: WebView2 debugging port for the app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($root in @('HKCU:', 'HKLM:')) {
+            $key = "$root\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+            New-Item -Path $key -Force | Out-Null
+            New-ItemProperty -Path $key -Name 'unsloth-studio.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
+            Get-ItemProperty $key | Out-String | Write-Host
+          }
+
       - name: Run the scenarios (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
