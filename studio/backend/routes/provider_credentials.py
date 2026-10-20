@@ -19,7 +19,7 @@ from fastapi import HTTPException
 
 from storage import credential_secrets
 from hub.services.models import account_access
-from utils.account_context import OWNER, current_account_id, run_as
+from utils.account_context import current_account_id
 
 logger = structlog.get_logger(__name__)
 
@@ -28,21 +28,15 @@ _provider_config_locks: WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, a
 )
 
 
-def _guard_key(provider_id: str):
-    if account_access.account_scope() is None:
-        return provider_id
-    return (current_account_id(), provider_id)
-
-
-def provider_config_guard(provider_id: str, *, shared_by_owner: bool = False) -> asyncio.Lock:
+def provider_config_guard(provider_id: str) -> asyncio.Lock:
     """Serialize one provider's routing metadata and installation credential."""
     loop = asyncio.get_running_loop()
     locks = _provider_config_locks.setdefault(loop, {})
-    key = _guard_key(provider_id)
-    # Callers pass the flag from the row they already read off the loop; never look it up here.
-    if shared_by_owner and account_access.managed_account():
-        # The owner edits a shared row under their own key; a reader must queue behind that edit.
-        key = run_as(OWNER, _guard_key, provider_id)
+    key = (
+        (current_account_id(), provider_id)
+        if account_access.account_scope() is not None
+        else provider_id
+    )
     return locks.setdefault(key, asyncio.Lock())
 
 

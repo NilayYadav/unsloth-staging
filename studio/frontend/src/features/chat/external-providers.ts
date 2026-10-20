@@ -37,8 +37,6 @@ export interface ExternalProviderConfig {
 
   /** Whether the backend has an installation-saved key. */
   hasApiKey?: boolean;
-  shared?: boolean;
-  sharedByOwner?: boolean;
 
   /** Sanitized backend-owned authorization state; never contains OAuth material. */
   authKind?: ProviderAuthKind;
