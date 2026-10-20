@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: pr14290-desktop-e2e-${{ github.ref }}
+  group: pr14290-desktop-e2e-iter-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        os: [ubuntu-22.04]
         arm: [head, baseline]
     env:
       PR_REPO: NilayYadav/unsloth

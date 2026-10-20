@@ -22,6 +22,14 @@ def root_id():
         return ""
 
 
+def desktop_secret():
+    try:
+        with open(os.path.expanduser("~/.unsloth/studio/auth/.desktop_secret"), encoding = "utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
 def record(method, path):
     try:
         with open(LOG, "a", encoding = "utf-8") as handle:
@@ -107,6 +115,7 @@ class Handler(BaseHTTPRequestHandler):
                 "supports_desktop_auth": True, "supports_desktop_backend_ownership": True,
                 "studio_root_id": root_id(), "desktop_owner": OWNER,
                 "device_type": "cuda", "chat_only": False, "hardware_detecting": False,
+                "native_path_leases_supported": True,
             })
         if path in GET:
             return self.send_json(GET[path])
@@ -115,10 +124,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         length = int(self.headers.get("content-length", "0") or 0)
-        if length:
-            self.rfile.read(length)
+        raw = self.rfile.read(length) if length else b""
         record("POST", path)
         if path == "/api/auth/desktop-login":
+            try:
+                secret = json.loads(raw or b"{}").get("secret", "")
+            except ValueError:
+                secret = ""
+            if not secret or secret != desktop_secret():
+                return self.send_json({"detail": "Invalid desktop secret"}, 401)
             return self.send_json({"access_token": "e2e-access", "refresh_token": "e2e-refresh", "token_type": "bearer", "must_change_password": False})
         if path == "/api/auth/refresh":
             return self.send_json({"access_token": "e2e-access", "refresh_token": "e2e-refresh", "token_type": "bearer", "must_change_password": False})

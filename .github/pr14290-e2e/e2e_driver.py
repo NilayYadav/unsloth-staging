@@ -398,7 +398,7 @@ def boot(d, app):
     d.sid = str(created["value"]["sessionId"])
     log("session", d.sid, json.dumps(created["value"].get("capabilities", {}))[:600])
     d.wait("return document.readyState === 'complete' && !!document.body", "main document", timeout = 60)
-    d.wait("return document.body && !(document.body.innerText||'').includes('Starting Unsloth') && (document.body.innerText||'').length > 20",
+    d.wait("const t=(document.body&&document.body.innerText)||''; return t.length > 20 && !['Starting Unsloth', 'Loading projects', 'Loading models', 'Nearly done', 'Finishing update'].some((m)=>t.includes(m))",
            "the backend handoff", timeout = 150)
     for payload in ({"width": 1400, "height": 900, "x": 0, "y": 0},):
         try:
