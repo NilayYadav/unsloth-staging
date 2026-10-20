@@ -94,9 +94,9 @@ _HIDDEN_RESPONSE_HEADERS = frozenset(
 
 # Quoted values are bounded and a bare "<" ends a tag, so stripping stays linear on hostile pages.
 _TAG_BODY = r"""(?:[^<>"']|"[^"]{0,4096}"|'[^']{0,4096}')*>"""
-_BASE_TAG_RE = re.compile(r"<base(?=[\s/>])" + _TAG_BODY, re.IGNORECASE)
+_BASE_TAG_RE = re.compile(r"<base\b" + _TAG_BODY, re.IGNORECASE)
 _ATTR_HREF_RE = re.compile(r"""\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNORECASE)
-_BASE_OR_META_RE = re.compile(r"<(base|meta)(?=[\s/>])" + _TAG_BODY, re.IGNORECASE)
+_META_TAG_RE = re.compile(r"<meta\b" + _TAG_BODY, re.IGNORECASE)
 _HTTP_EQUIV_RE = re.compile(r"""\bhttp-equiv\s*=\s*["']?([\w-]+)""", re.IGNORECASE)
 _CONTENT_ATTR_RE = re.compile(
     r"""\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>]{1,4096}))""", re.IGNORECASE
@@ -115,14 +115,13 @@ _MAX_AGE_RE = re.compile(r"(?:^|[\s,])(s-maxage|max-age)\s*=\s*\"?(\d+)", re.IGN
 _SCRIPT_OPEN_RE = re.compile(r"<script", re.IGNORECASE)
 # Text, not markup: comments, raw-text/RCDATA/noscript/template content, and other tags' attribute values.
 _INERT_START_RE = re.compile(
-    r"<!--|<(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript|plaintext|template)"
-    + r"(?=[\s/>])"
+    r"<!--|<(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript|plaintext|template)\b"
     + _TAG_BODY
-    + r"|<[a-z]"
+    + r"|<[a-z][^\s/>]*"
     + _TAG_BODY,
     re.IGNORECASE,
 )
-_TEMPLATE_TAG_RE = re.compile(r"<(/)?template(?=[\s/>])" + _TAG_BODY, re.IGNORECASE)
+_TEMPLATE_TAG_RE = re.compile(r"<(/)?template(?=[\s/>])", re.IGNORECASE)
 _CLOSING_TAG_RES = {
     name: re.compile(rf"</{name}(?=[\s/>])", re.IGNORECASE)
     for name in (
@@ -1518,37 +1517,27 @@ def _join(base: str, href: str) -> Optional[str]:
 def _prepare_page(page: str, url: str) -> tuple[str, Optional[str], Optional[dict]]:
     """Return ``(page, base_url, refresh)`` with <base>, CSP and refresh meta tags removed; ``base_url``
     is None when the page declares no base."""
-    text: Optional[list[tuple[int, int]]] = None
-
-    def live(match: "re.Match[str]") -> bool:
-        nonlocal text
-        if text is None:
-            text = _inert_spans(page)
-        at = bisect.bisect_right(text, (match.start(), len(page))) - 1
-        return at < 0 or match.start() >= text[at][1]
-
     base_url = None
-    for match in filter(live, _BASE_TAG_RE.finditer(page)):
-        href = _attr(_ATTR_HREF_RE.search(match.group(0)))
+    for tag in _BASE_TAG_RE.findall(page):
+        href = _attr(_ATTR_HREF_RE.search(tag))
         # href="" is a base too, frozen at the document's URL (HTML: the base element).
         if href is not None:
             base_url = _join(url, href) or url
             break
+    page = _BASE_TAG_RE.sub("", page)
 
     refresh = None
 
-    def strip(match: "re.Match[str]") -> str:
+    def strip_meta(match: "re.Match[str]") -> str:
         nonlocal refresh
         tag = match.group(0)
-        if match.group(1).lower() == "base":
-            return "" if live(match) else tag
         equiv = _HTTP_EQUIV_RE.search(tag)
         if not equiv:
             return tag
         name = equiv.group(1).lower()
         # The page's CSP doesn't fit the sandbox; a refresh would navigate the frame.
-        if name not in ("content-security-policy", "refresh") or not live(match):
-            return tag
+        if name == "content-security-policy":
+            return ""
         if name == "refresh":
             parsed = _REFRESH_RE.match(_attr(_CONTENT_ATTR_RE.search(tag)) or "")
             if parsed and parsed.group(2) and refresh is None:
@@ -1556,9 +1545,10 @@ def _prepare_page(page: str, url: str) -> tuple[str, Optional[str], Optional[dic
                 target = _join(base_url or url, parsed.group(2))
                 if delay <= _MAX_REFRESH_DELAY_S and target:
                     refresh = {"delay": delay, "url": target}
-        return ""
+            return ""
+        return tag
 
-    return _BASE_OR_META_RE.sub(strip, page), base_url, refresh
+    return _META_TAG_RE.sub(strip_meta, page), base_url, refresh
 
 
 # unsloth.ai's Cloudflare skips its bot challenge for requests carrying this. Only its own hosts get
@@ -1691,7 +1681,7 @@ def _inert_spans(page: str) -> list[tuple[int, int]]:
             spans.append((match.start(), end))
         elif match.group(1) is None:
             end = match.end()
-            spans.append((match.start() + 1, end))
+            spans.append((match.start(), end))
         elif match.group(1).lower() == "template":
             depth, close = 1, None
             for tag in _TEMPLATE_TAG_RE.finditer(page, match.end()):
@@ -1700,7 +1690,6 @@ def _inert_spans(page: str) -> list[tuple[int, int]]:
                     close = tag
                     break
             end = close.end() if close else len(page)
-            spans.append((match.start() + 1, match.end()))
             spans.append((match.end(), close.start() if close else len(page)))
         else:
             name = match.group(1).lower()
@@ -1708,7 +1697,6 @@ def _inert_spans(page: str) -> list[tuple[int, int]]:
                 None if name == "plaintext" else _CLOSING_TAG_RES[name].search(page, match.end())
             )
             end = close.end() if close else len(page)
-            spans.append((match.start() + 1, match.end()))
             spans.append((match.end(), close.start() if close else len(page)))
         at = max(end, match.end())
     return spans
