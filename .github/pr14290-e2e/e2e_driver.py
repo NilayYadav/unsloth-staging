@@ -266,6 +266,8 @@ class Run:
                 self.d.s("POST", f"/element/{el}/click", {})
                 time.sleep(0.2)
                 self.d.s("POST", f"/element/{el}/clear", {})
+                # WebView2 leaves a React-controlled value after clear: select all and delete it too.
+                self.d.s("POST", f"/element/{el}/value", {"text": "\ue009a\ue000\ue003"})
                 self.d.s("POST", f"/element/{el}/value", {"text": text + ""})
                 return "webdriver-keys"
             except Exception as error:
