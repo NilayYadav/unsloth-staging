@@ -310,15 +310,8 @@ export const BUDGET = {
   // The Rosetta chat-only messages (#14374) in the eager sidebar and hardware verdict add 298 B raw / 127 B
   // transfer (6,859,194 -> 6,859,492 B raw, 2,065,328 -> 2,065,455 B transfer against 34c5203ebb, one machine and
   // build, Node 24, 96 chunks). Raised to that build plus the same 160 B raw / 189 B transfer margin.
-  // The Settings > MCP tab and per-tool toggles add 1,966 B raw / 738 B transfer (measured against d9aded3801, one
-  // machine and build, Node 24, 96 -> 97 chunks): the tab panel is lazy, so the growth is its strings in the eager
-  // English catalog plus the TABS, search and palette entries. The 97th chunk is api-provider-logo, split out of the
-  // eager providers-api chunk, not new code. Raised by that.
-  // The chat's Unsloth Studio tools preset and the "Not in chat" note add 233 B raw / 15 B transfer (measured
-  // against the MCP tab build, one machine and build, Node 24, 97 chunks), in the eager chat chunk and English
-  // catalog. Raised by that.
-  transferBytes: 2_066_397,
-  rawBytes: 6_861_851,
+  transferBytes: 2_065_644,
+  rawBytes: 6_859_652,
 };
 
 // The chunk count is reported but not budgeted. Splitting a page out of the entry raises it while lowering the

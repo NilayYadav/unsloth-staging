@@ -89,9 +89,7 @@ from core.inference.mcp_client import (
     get_cached_resources,
     get_cached_tools,
     in_failure_cooloff,
-    invalidate_tool_cache,
     is_studio_decisions,
-    is_studio_tools,
     is_stdio,
     list_tools_async,
     oauth_client_kwargs,
@@ -105,12 +103,7 @@ from core.inference.mcp_client import (
     tool_visible_to,
 )
 from storage import mcp_servers_db
-from utils.account_context import (
-    account_thread,
-    current_account,
-    current_account_id,
-    is_owner_context,
-)
+from utils.account_context import account_thread, current_account_id, is_owner_context
 from utils.current_date_prompt_settings import strip_current_date_update_note
 from utils import sandbox_memory_limit, tool_result_limit
 from core.inference.tool_confinement import ToolConfinementUnavailable, account_confinement
@@ -14458,20 +14451,12 @@ async def get_enabled_mcp_tools(
         servers = [server for server in servers if server["id"] in server_ids]
     if not include_stdio or not stdio_mcp_enabled():
         servers = [s for s in servers if not is_stdio(s["url"])]
-    from core.inference.studio_tools_mcp import keyless_caller
-
-    if keyless_caller(current_account()):
-        servers = [s for s in servers if not is_studio_tools(s["url"])]
     if not servers:
         return []
 
-    # cool-off avoids blocking every send for the full probe timeout when a server is down. The Unsloth Studio
-    # tools row is listed in process, so it is re-listed every send and an owner's tool toggles apply at once.
+    # cool-off avoids blocking every send for the full probe timeout when a server is down.
     uncached = [
-        s
-        for s in servers
-        if is_studio_tools(s["url"])
-        or (get_cached_tools(s["id"]) is None and not in_failure_cooloff(s["id"]))
+        s for s in servers if get_cached_tools(s["id"]) is None and not in_failure_cooloff(s["id"])
     ]
     if uncached:
         results = await asyncio.gather(
@@ -14506,9 +14491,6 @@ async def get_enabled_mcp_tools(
                 # Failures aren't cached, but record one so a down server isn't re-probed every send during the
                 # cool-off.
                 record_probe_failure(server["id"], bool(fresh.get("use_oauth")))
-                if is_studio_tools(server["url"]):
-                    # Never fall back to an older listing that may name a tool since turned off.
-                    invalidate_tool_cache(server["id"])
                 continue
             cache_tools(server["id"], payload)
 

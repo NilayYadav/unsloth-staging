@@ -79,7 +79,6 @@ import {
   detailsFor,
 } from "../components/coding-agent-list";
 import { SettingsSection } from "../components/settings-section";
-import { UnslothStudioMcpRow } from "../components/unsloth-studio-mcp-row";
 import {
   isChatGenerativeHubModel,
   isClassifierOrRerankerHubModel,
@@ -1572,8 +1571,6 @@ export function AgentsTab() {
           <CommandBlock command={shellCommands.dryRun} />
         </div>
       </SettingsSection>
-
-      <UnslothStudioMcpRow />
     </div>
   );
 }
