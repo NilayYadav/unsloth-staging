@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: pr14290-desktop-e2e-iter-${{ github.ref }}
+  group: pr14290-desktop-e2e-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-22.04]
         arm: [head, baseline]
     env:
       PR_REPO: NilayYadav/unsloth
@@ -164,6 +164,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop; Write-Host 'display set to 1920x1080' } catch { Write-Host "display resolution unchanged: $_" }
           foreach ($root in @('HKCU:', 'HKLM:')) {
             $key = "$root\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
             New-Item -Path $key -Force | Out-Null

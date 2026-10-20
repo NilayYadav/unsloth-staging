@@ -467,7 +467,9 @@ def win_resize(width, height):
         'Add-Type @"\nusing System; using System.Runtime.InteropServices;\n'
         'public class E2EMove { [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool r); }\n"@\n'
         "$p = Get-Process -Name unsloth-studio -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1;"
-        f"if ($p) {{ [E2EMove]::MoveWindow($p.MainWindowHandle, 0, 0, {width}, {height}, $true) }} else {{ 'NOWINDOW' }}"
+        "Add-Type -AssemblyName System.Windows.Forms; $a = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea;"
+        f"$w = [Math]::Min({width}, $a.Width); $h = [Math]::Min({height}, $a.Height); 'screen ' + $a.Width + 'x' + $a.Height + ' window ' + $w + 'x' + $h;"
+        "if ($p) { [E2EMove]::MoveWindow($p.MainWindowHandle, 0, 0, $w, $h, $true) } else { 'NOWINDOW' }"
     )
     out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output = True, text = True, timeout = 60)
     log("win resize:", out.stdout.strip(), out.stderr.strip()[:300])
