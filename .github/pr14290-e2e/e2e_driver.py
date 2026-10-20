@@ -209,7 +209,11 @@ if (!window.__e2eToasts) {
   const scan = () => {
     for (const el of document.querySelectorAll('[data-sonner-toast]')) {
       const text = (el.innerText || '').trim();
-      if (text && seen.get(el) !== text) { seen.set(el, text); window.__e2eToasts.push({t: Date.now(), text}); }
+      if (text && seen.get(el) !== text) {
+        seen.set(el, text); window.__e2eToasts.push({t: Date.now(), text});
+        // Hold sonner's dismiss timer (it pauses while the list is hovered) so Open can still be pressed.
+        el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+      }
     }
   };
   new MutationObserver(scan).observe(document.body, {subtree: true, childList: true, characterData: true});
@@ -392,14 +396,52 @@ class Run:
         time.sleep(1.2)
 
 
-def boot(d, app):
-    created = d.req("POST", "/session", {"capabilities": {"alwaysMatch": {
-        "browserName": "wry", "tauri:options": {"application": str(app)}}}}, timeout = 120)
+def cdp_ready(port, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout = 2) as response:
+                return json.load(response)
+        except Exception:
+            time.sleep(0.5)
+    return None
+
+
+def cdp_targets(port):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout = 5) as response:
+            return json.load(response)
+    except Exception as error:
+        return f"error: {error}"
+
+
+def win_resize(width, height):
+    ps = (
+        'Add-Type @"\nusing System; using System.Runtime.InteropServices;\n'
+        'public class E2EMove { [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool r); }\n"@\n'
+        "$p = Get-Process -Name unsloth-studio -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1;"
+        f"if ($p) {{ [E2EMove]::MoveWindow($p.MainWindowHandle, 0, 0, {width}, {height}, $true) }} else {{ 'NOWINDOW' }}"
+    )
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output = True, text = True, timeout = 60)
+    log("win resize:", out.stdout.strip(), out.stderr.strip()[:300])
+
+
+def boot(d, app, attach = None):
+    if attach:
+        caps = {"browserName": "webview2", "ms:edgeOptions": {"debuggerAddress": f"127.0.0.1:{attach}"}}
+    else:
+        caps = {"browserName": "wry", "tauri:options": {"application": str(app)}}
+    created = d.req("POST", "/session", {"capabilities": {"alwaysMatch": caps}}, timeout = 120)
     d.sid = str(created["value"]["sessionId"])
     log("session", d.sid, json.dumps(created["value"].get("capabilities", {}))[:600])
     d.wait("return document.readyState === 'complete' && !!document.body", "main document", timeout = 60)
     d.wait("const t=(document.body&&document.body.innerText)||''; return t.length > 20 && !['Starting Unsloth', 'Loading projects', 'Loading models', 'Nearly done', 'Finishing update'].some((m)=>t.includes(m))",
            "the backend handoff", timeout = 150)
+    if attach:
+        win_resize(1400, 900)
+        time.sleep(1.5)
+        log("inner size", d.js("return [innerWidth, innerHeight, devicePixelRatio]"))
+        return
     for payload in ({"width": 1400, "height": 900, "x": 0, "y": 0},):
         try:
             d.s("POST", "/window/rect", payload)
@@ -489,7 +531,8 @@ def scenarios(r):
         since = time.time()
         click = r.click_in_page(target, key)
         toast = r.wait_toast(f"wants to open {url}", t0, timeout = 6)
-        time.sleep(1)
+        if not toast:
+            time.sleep(1)
         after_tabs = r.tabs()
         addr = r.address()
         stayed = (addr or "").startswith("http://localhost:7860") and len(after_tabs) == len(before_tabs)
@@ -499,7 +542,12 @@ def scenarios(r):
                   "tabs_after": len(after_tabs), "all_toasts": r.toasts(t0), "requests_to_7861": len(navigated_away)}
         opened = None
         if toast:
-            open_text = r.click_toast_open()
+            open_text = False
+            for _ in range(12):
+                open_text = r.click_toast_open()
+                if open_text:
+                    break
+                time.sleep(0.25)
             time.sleep(4)
             opened_tabs = r.tabs()
             new = [t for t in opened_tabs if t["id"] not in {b["id"] for b in after_tabs}]
@@ -575,6 +623,7 @@ def main():
     ap.add_argument("--native-driver", required = True)
     ap.add_argument("--art", required = True)
     ap.add_argument("--arm", default = "head")
+    ap.add_argument("--windows-mode", choices = ["attach", "tauri-driver"], default = "attach")
     args = ap.parse_args()
     art = Path(args.art).resolve()
     art.mkdir(parents = True, exist_ok = True)
@@ -586,8 +635,23 @@ def main():
     port, native_port = free_port(), free_port()
     drv_log = open(art / "tauri-driver.log", "wb")
     kwargs = {"start_new_session": True} if not WIN else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-    drv = subprocess.Popen([tauri_driver, "--port", str(port), "--native-port", str(native_port),
-                            "--native-driver", args.native_driver], stdout = drv_log, stderr = subprocess.STDOUT, **kwargs)
+    attach = None
+    app_proc = None
+    if WIN and args.windows_mode == "attach":
+        # msedgedriver's own launch (what tauri-driver asks for) never finds DevToolsActivePort for
+        # this app, so start the app with a fixed WebView2 debugging port and attach to it instead.
+        attach = 9222
+        env = {**os.environ, "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": f"--remote-debugging-port={attach}"}
+        app_proc = subprocess.Popen([str(args.app)], env = env, stdout = open(art / "app-stdout.log", "wb"),
+                                    stderr = subprocess.STDOUT, creationflags = subprocess.CREATE_NEW_PROCESS_GROUP)
+        version = cdp_ready(attach, 120)
+        log("cdp version", json.dumps(version)[:400])
+        (art / "cdp-targets-boot.json").write_text(json.dumps(cdp_targets(attach), indent = 2), encoding = "utf-8")
+        drv = subprocess.Popen([args.native_driver, f"--port={port}", "--verbose", f"--log-path={art / 'msedgedriver.log'}"],
+                               stdout = drv_log, stderr = subprocess.STDOUT, **kwargs)
+    else:
+        drv = subprocess.Popen([tauri_driver, "--port", str(port), "--native-port", str(native_port),
+                                "--native-driver", args.native_driver], stdout = drv_log, stderr = subprocess.STDOUT, **kwargs)
     d = Driver(f"http://127.0.0.1:{port}")
     for _ in range(120):
         try:
@@ -598,7 +662,7 @@ def main():
     r = Run(d, Site(site_log), art, args.arm)
     fatal = None
     try:
-        boot(d, args.app)
+        boot(d, args.app, attach)
         r.shot("00-booted")
         open_browser(r)
         r.shot("01-panel-open")
@@ -625,7 +689,9 @@ def main():
                 d.req("DELETE", f"/session/{d.sid}", timeout = 15)
         except Exception:
             pass
-        for proc in (drv, site_proc):
+        if attach:
+            (art / "cdp-targets-end.json").write_text(json.dumps(cdp_targets(attach), indent = 2), encoding = "utf-8")
+        for proc in [p for p in (drv, site_proc, app_proc) if p]:
             try:
                 if WIN:
                     subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output = True)
