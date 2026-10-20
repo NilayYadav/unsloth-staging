@@ -40084,16 +40084,7 @@ def _embeddings_items(body: dict, *, tokens_ok: bool) -> list:
         raise HTTPException(
             status_code = 400, detail = "'encoding_format' must be 'float' or 'base64'."
         )
-    _embeddings_truncate(body)
     return items
-
-
-def _embeddings_truncate(body: dict) -> bool:
-    """``truncate`` (Ollama / TEI spelling), default on (#14309)."""
-    truncate = body.get("truncate", True)
-    if not isinstance(truncate, bool):
-        raise HTTPException(status_code = 400, detail = "'truncate' must be a boolean.")
-    return truncate
 
 
 def _embeddings_texts(body: dict) -> list[str]:
@@ -40336,19 +40327,12 @@ async def _studio_embeddings(
         # setting, mixing one model's limit and dimension with another's vectors.
         limit = rag_embeddings.max_tokens(model_name)
         count = rag_embeddings.token_counter(model_name)
-        inputs = texts
-        token_counts = [count(text) for text in inputs]
+        token_counts = [count(text) for text in texts]
         if limit and max(token_counts) > limit:
-            if not _embeddings_truncate(body):
-                raise HTTPException(
-                    status_code = 400,
-                    detail = f"'input' exceeds the {limit}-token limit of {label}.",
-                )
-            inputs = [rag_embeddings.clip_to_limit(text, count, limit)[0] for text in inputs]
-            logger.warning(
-                "Embedding input over the %d-token limit of %s truncated to fit", limit, label
+            raise HTTPException(
+                status_code = 400,
+                detail = f"'input' exceeds the {limit}-token limit of {label}.",
             )
-            token_counts = [count(text) for text in inputs]
         if dimensions is not None and dimensions != rag_embeddings.dim(model_name):
             raise HTTPException(
                 status_code = 400, detail = f"'dimensions' is not supported by {label}."
@@ -40356,7 +40340,7 @@ async def _studio_embeddings(
         # encode_with_identity: an ST failure swaps the process to llama-server mid-encode, and
         # reporting the configured name anyway files two spaces under one label.
         vectors, identity = rag_embeddings.encode_with_identity(
-            inputs, model_name = model_name, normalize = True
+            texts, model_name = model_name, normalize = True
         )
         return vectors, identity, sum(token_counts), limit
 
@@ -40451,76 +40435,6 @@ async def _studio_embeddings(
     _monitor_openai_chunk(monitor_id, payload, limit if len(texts) == 1 else None)
     api_monitor.finish(monitor_id)
     return Response(content = json.dumps(payload), media_type = "application/json")
-
-
-# llama-server's refusals past one micro-batch (500) or the slot context (400), server-context.cpp;
-# a splittable slot (LAST pooling, e.g. Qwen3-Embedding) refuses n_tokens >= n_ctx instead.
-_LLAMA_EMBED_OVERFLOW_RE = re.compile(
-    r"input \(\d+ tokens\) is (?:too large to process\. increase the physical batch size "
-    r"\(current batch size: (\d+)\)|larger than the max context size \((\d+) tokens\))"
-    r"|request \(\d+ tokens\) exceeds the available context size \((\d+) tokens\)"
-)
-
-
-def _llama_embedding_overflow_limit(resp) -> Optional[int]:
-    if resp.status_code not in (400, 500):
-        return None
-    try:
-        match = _LLAMA_EMBED_OVERFLOW_RE.search(resp.json()["error"]["message"])
-    except Exception:  # noqa: BLE001
-        return None
-    if not match:
-        return None
-    if match.group(3):
-        return int(match.group(3)) - 1
-    return int(match.group(1) or match.group(2))
-
-
-async def _truncated_llama_embedding_inputs(
-    client, base_url, headers, value, limit, cache: dict
-) -> Optional[list]:
-    """Strings past ``limit`` cut to their first tokens, keeping the special tokens llama-server
-    adds around a string. None when nothing was cut. ``cache`` spans the retries."""
-    items = [value] if isinstance(value, str) else value
-    # A top-level array holding numbers is one prompt (tokens, or tokens mixed with strings).
-    if not isinstance(items, list) or any(not isinstance(item, (str, list)) for item in items):
-        return None
-
-    async def tokenize(text: str, add_special: bool) -> Optional[list]:
-        r = await client.post(
-            f"{base_url}/tokenize",
-            json = {"content": text, "add_special": add_special},
-            headers = headers,
-            timeout = _DEFAULT_FIRST_TOKEN_TIMEOUT_S,
-        )
-        try:
-            tokens = r.json()["tokens"] if r.status_code == 200 else None
-        except (ValueError, KeyError, TypeError):
-            tokens = None
-        return tokens if isinstance(tokens, list) else None
-
-    out, cut = [], False
-    for index, item in enumerate(items):
-        # An ASCII token is at least one byte, so a short ASCII string fits without a /tokenize
-        # round trip; normalization can expand non-ASCII text past its byte length.
-        if isinstance(item, str) and (not item.isascii() or len(item) + 8 > limit):
-            if index not in cache:
-                cache[index] = [await tokenize(item, True), None]
-            full, bare = cache[index]
-            if full is None:
-                return None
-            if len(full) > limit:
-                if bare is None:
-                    bare = cache[index][1] = await tokenize(item, False)
-                    if bare is None:
-                        return None
-                extra = len(full) - len(bare)
-                head = next((h for h in range(extra + 1) if full[h : h + len(bare)] == bare), None)
-                if head is not None and limit > extra:
-                    item = full[:head] + bare[: limit - extra] + full[head + len(bare) :]
-                    cut = True
-        out.append(item)
-    return out if cut else None
 
 
 def _embedding_width(resp) -> Optional[int]:
@@ -40639,8 +40553,6 @@ async def openai_embeddings(request: Request, current_subject: str = Depends(get
     # llama-server ignores `dimensions`; checked against the returned width below.
     body = dict(body)
     dimensions = body.pop("dimensions", None)
-    truncate = _embeddings_truncate(body)
-    body.pop("truncate", None)
     target_url = f"{llama_backend.base_url}/v1/embeddings"
     prompt_text = _flatten_monitor_prompt(body.get("input", ""))
     monitor_id = None
@@ -40679,36 +40591,13 @@ async def openai_embeddings(request: Request, current_subject: str = Depends(get
     _direct_llama_request_started()
     try:
         try:
-            upstream_headers = _openai_passthrough_upstream_headers(llama_backend = llama_backend)
             resp = await _client.post(
                 target_url,
                 json = body,
-                headers = upstream_headers,
+                headers = _openai_passthrough_upstream_headers(llama_backend = llama_backend),
                 timeout = _DEFAULT_FIRST_TOKEN_TIMEOUT_S,
             )
-            # Retry cut to the reported limit: ubatch, then n_ctx.
-            original, cache, limit = body.get("input"), {}, None
-            for _ in range(2):
-                reported = _llama_embedding_overflow_limit(resp) if truncate else None
-                if not reported:
-                    break
-                # Cut the client's inputs, not the token arrays the first retry sent.
-                limit = min(limit or reported, reported)
-                inputs = await _truncated_llama_embedding_inputs(
-                    _client, llama_backend.base_url, upstream_headers, original, limit, cache
-                )
-                if not inputs:
-                    break
-                logger.warning("Embedding input over the %d-token limit truncated to fit", limit)
-                body["input"] = inputs
-                resp = await _client.post(
-                    target_url,
-                    json = body,
-                    headers = upstream_headers,
-                    timeout = _DEFAULT_FIRST_TOKEN_TIMEOUT_S,
-                )
-        # RuntimeError: a retry or /tokenize call sent after the watcher already closed the client.
-        except (httpx.RequestError, RuntimeError):
+        except httpx.RequestError:
             # The watcher closed the client out from under the request: report the cancel, not a transport failure.
             _raise_if_nonstreaming_request_cancelled(_cancel_event)
             raise
