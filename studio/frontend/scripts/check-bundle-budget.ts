@@ -313,8 +313,11 @@ export const BUDGET = {
   // The retrieved passage viewer (#13987) in the eager chat UI adds 3,132 B raw / 939 B transfer (6,859,492 ->
   // 6,862,624 B raw, 2,065,455 -> 2,066,394 B transfer against 98010f6eee, one machine and build, 96 chunks).
   // Raised to that build plus the same 160 B raw / 189 B transfer margin.
-  transferBytes: 2_066_583,
-  rawBytes: 6_862_784,
+  // The browser panel's page history and scroll restore (#14283) add 372 B raw / 141 B transfer (6,862,624 ->
+  // 6,862,996 B raw, 2,066,394 -> 2,066,535 B transfer against 731cb16c2b, one machine and build, Node 22, 96
+  // chunks), inside the already-eager chat chunk. Raised to that build plus the same 160 B raw / 189 B transfer margin.
+  transferBytes: 2_066_724,
+  rawBytes: 6_863_156,
 };
 
 // The chunk count is reported but not budgeted. Splitting a page out of the entry raises it while lowering the
