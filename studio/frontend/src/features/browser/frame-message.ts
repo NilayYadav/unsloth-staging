@@ -17,9 +17,7 @@ export type FrameMessage =
   | { type: "loaded"; title: string; favicon: string | null }
   | { type: "title"; title: string }
   | { type: "url"; url: string }
-  | { type: "reload" | "back" | "forward" }
-  | { type: "scroll"; x: number; y: number }
-  | { type: "history"; back: boolean; forward: boolean }
+  | { type: "reload" }
   | { type: "upload" }
   | { type: "scriptNavigation" }
   | { type: "needsBrowser" }
@@ -209,16 +207,7 @@ export function parseFrameMessage(data: unknown): FrameMessage | null {
     case "title":
       return { type: "title", title: title(message.title) };
     case "reload":
-    case "back":
-    case "forward":
-      return { type: message.type };
-    case "scroll": {
-      const x = coord(message.x);
-      const y = coord(message.y);
-      return x === null || y === null ? null : { type: "scroll", x, y };
-    }
-    case "history":
-      return { type: "history", back: message.back === true, forward: message.forward === true };
+      return { type: "reload" };
     case "upload":
     case "scriptNavigation":
     case "needsBrowser":
