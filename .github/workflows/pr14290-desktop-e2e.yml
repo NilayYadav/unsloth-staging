@@ -97,9 +97,11 @@ jobs:
         shell: bash
         run: |
           (cd src && python scripts/lockfile_supply_chain_audit.py)
-          npm ci --prefix src/studio --no-fund --no-audit
-          (cd src/studio/frontend && npm ci --no-fund --no-audit)
-          npx --prefix src/studio tauri build --debug --no-bundle
+          cd src
+          npm ci --prefix studio --no-fund --no-audit
+          (cd studio/frontend && npm ci --no-fund --no-audit)
+          npx --prefix studio tauri build --debug --no-bundle
+          cd ..
           mkdir -p app-bin
           if [ "$RUNNER_OS" = Windows ]; then cp src/studio/src-tauri/target/debug/unsloth-studio.exe app-bin/; else cp src/studio/src-tauri/target/debug/unsloth-studio app-bin/; fi
           ls -la app-bin
