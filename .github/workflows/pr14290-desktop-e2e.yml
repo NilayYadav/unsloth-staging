@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [windows-latest, ubuntu-22.04]
         arm: [head, baseline]
     env:
       PR_REPO: NilayYadav/unsloth
@@ -133,7 +133,9 @@ jobs:
           New-Item -ItemType Directory -Force $pkg | Out-Null
           Copy-Item .github/pr14290-e2e/stub_cli.py (Join-Path $pkg '__init__.py')
           Copy-Item (Join-Path $venv 'Scripts\python.exe') (Join-Path $venv 'Scripts\unsloth.exe')
-          & (Join-Path $venv 'Scripts\python.exe') -c "import sys; sys.argv=['unsloth','desktop-capabilities','--json']; from unsloth_cli import app; sys.exit(app())"
+          Set-Location $env:RUNNER_TEMP
+          & (Join-Path $venv 'Scripts\python.exe') -c "import sys, os; sys.path[:1] = [x for x in sys.path[:1] if x not in ('', os.getcwd())]; sys.argv=['unsloth','desktop-capabilities','--json']; from unsloth_cli import app; sys.exit(app())"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Matching msedgedriver (Windows)
         if: runner.os == 'Windows'
