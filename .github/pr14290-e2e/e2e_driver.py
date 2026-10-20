@@ -415,6 +415,24 @@ def cdp_targets(port):
         return f"error: {error}"
 
 
+def win_diag(path):
+    ps = (
+        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'msedgewebview2|unsloth-studio' } | "
+        "ForEach-Object { '{0} {1} parent={2}: {3}' -f $_.ProcessId, $_.Name, $_.ParentProcessId, $_.CommandLine } ; "
+        "'--- listening'; Get-NetTCPConnection -State Listen | Sort-Object LocalPort | ForEach-Object { '{0}:{1} pid={2}' -f $_.LocalAddress, $_.LocalPort, $_.OwningProcess } ; "
+        "'--- env'; [Environment]::GetEnvironmentVariable('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', 'Machine'); [Environment]::GetEnvironmentVariable('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', 'User'); "
+        "'--- policy'; Get-ItemProperty 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2' -ErrorAction SilentlyContinue | Out-String; "
+        "Get-ItemProperty 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge' -ErrorAction SilentlyContinue | Out-String; "
+        "'--- data'; Get-ChildItem -Recurse -Filter DevToolsActivePort $env:LOCALAPPDATA -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }"
+    )
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output = True, text = True, timeout = 120)
+        Path(path).write_text(out.stdout + "\n" + out.stderr, encoding = "utf-8")
+        log("win diag:\n" + out.stdout[:6000])
+    except Exception as error:
+        log("win diag failed", error)
+
+
 def win_resize(width, height):
     ps = (
         'Add-Type @"\nusing System; using System.Runtime.InteropServices;\n'
@@ -644,8 +662,12 @@ def main():
         env = {**os.environ, "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": f"--remote-debugging-port={attach}"}
         app_proc = subprocess.Popen([str(args.app)], env = env, stdout = open(art / "app-stdout.log", "wb"),
                                     stderr = subprocess.STDOUT, creationflags = subprocess.CREATE_NEW_PROCESS_GROUP)
-        version = cdp_ready(attach, 120)
+        version = cdp_ready(attach, 45)
         log("cdp version", json.dumps(version)[:400])
+        win_diag(art / "webview2-procs.txt")
+        if not version:
+            version = cdp_ready(attach, 60)
+            log("cdp version (late)", json.dumps(version)[:400])
         (art / "cdp-targets-boot.json").write_text(json.dumps(cdp_targets(attach), indent = 2), encoding = "utf-8")
         drv = subprocess.Popen([args.native_driver, f"--port={port}", "--verbose", f"--log-path={art / 'msedgedriver.log'}"],
                                stdout = drv_log, stderr = subprocess.STDOUT, **kwargs)

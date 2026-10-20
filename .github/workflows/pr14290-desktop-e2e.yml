@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        os: [windows-latest]
         arm: [head, baseline]
     env:
       PR_REPO: NilayYadav/unsloth
