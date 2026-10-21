@@ -11,11 +11,9 @@ import {
 import type { MemoryEstimate } from "../api/memory-estimate";
 import {
   type MemoryFitVerdict,
-  NOTE_SEPARATOR,
   formatMemoryGb,
   glueNoteItems,
   memoryFigureCandidates,
-  mlxOffloadPercent,
   resolveDraftCacheNote,
   resolveKvNote,
   resolveMemoryFit,
@@ -227,17 +225,6 @@ export function MemoryEstimateRow({
     },
   );
   const kvNote = resolveKvNote(estimate);
-  const weightsNote = [
-    estimate.gpuLayers != null && estimate.layerCount != null
-      ? `${estimate.gpuLayers} of ${estimate.layerCount + 1} layers on GPU`
-      : null,
-    estimate.mlxPleOffload ? `PLE ${mlxOffloadPercent(estimate.mlxPleOffload)} on disk` : null,
-    estimate.mlxExpertOffload
-      ? `experts ${mlxOffloadPercent(estimate.mlxExpertOffload)} on disk`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(NOTE_SEPARATOR);
   const draftCacheNote = resolveDraftCacheNote(
     estimate.drafterRuntimeGpuBytes,
     estimate.drafterRuntimeBytes,
@@ -303,7 +290,11 @@ export function MemoryEstimateRow({
         <MemoryBreakdownLine
           label="Weights"
           value={formatMemoryGb(estimate.weightsBytes)}
-          note={weightsNote || undefined}
+          note={
+            estimate.gpuLayers != null && estimate.layerCount != null
+              ? `${estimate.gpuLayers} of ${estimate.layerCount + 1} layers on GPU`
+              : undefined
+          }
         />
         <MemoryBreakdownLine
           label="KV cache"
