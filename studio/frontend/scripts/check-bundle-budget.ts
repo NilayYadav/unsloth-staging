@@ -348,8 +348,13 @@ export const BUDGET = {
   // REAP on the Export page (#14130) passes its options through the eager export runtime store (the card is
   // in the lazy export page): +371 B raw / +119 B transfer (6,878,631 -> 6,879,002 B raw, 2,071,507 ->
   // 2,071,626 B transfer against 4df9ce74f, one machine and build, Node 24, 97 chunks). Raised by that.
-  transferBytes: 2_071_693,
-  rawBytes: 6_879_150,
+  // The MLX PLE and expert offload controls (#14326) put the per-model fields, their load, status and estimate
+  // plumbing and the Run settings Disk Offload row in the eager chat and model-picker chunks: 7,440 B raw / 1,765 B
+  // transfer (6,862,706 -> 6,870,146 B raw, 2,062,029 -> 2,063,794 B transfer against b916ee8e6c, one machine and
+  // build, 96 chunks). Merged with main at fc91656ff the build measures 6,886,312 B raw / 2,073,751 B transfer
+  // (Node 22, 97 chunks). Raised to that build plus the same 160 B raw / 189 B transfer margin.
+  transferBytes: 2_073_940,
+  rawBytes: 6_886_472,
 };
 
 // The chunk count is reported but not budgeted. Splitting a page out of the entry raises it while lowering the
