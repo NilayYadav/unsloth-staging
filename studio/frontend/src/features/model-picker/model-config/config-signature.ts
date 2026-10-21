@@ -60,8 +60,6 @@ export function loadedConfigSignature(
     config.kvCacheDtype ?? "",
     config.mlxKvQuant ?? "",
     config.mlxInt8Prefill ? "1" : "0",
-    config.mlxPleOffload ?? "",
-    config.mlxExpertOffload ?? "",
     config.speculativeType ?? "",
     config.specDraftNMax ?? "",
     config.specDraftCacheDtype ?? "",
