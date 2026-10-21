@@ -247,10 +247,7 @@ import {
   beginServerModelWait,
   statusPollSignal,
 } from "../lib/server-model-wait";
-import {
-  syncInferenceStatusToStore,
-  syncModelCapabilities,
-} from "../hooks/use-chat-model-runtime";
+import { syncModelCapabilities } from "../hooks/use-chat-model-runtime";
 import {
   clampReasoningEffortToLevels,
   externalMaxOutputTokensNeedsConnectionCap,
@@ -9191,10 +9188,6 @@ export function createOpenAIStreamAdapter(
             toast.error("Generation failed", {
               description: msg || "Unknown error",
             });
-          }
-          // A killed worker is only noticed by a status read.
-          if (!isExternalRequest) {
-            void syncInferenceStatusToStore({ includeLoras: false });
           }
         }
         // An explicit Stop is an abort too, but it must persist its reason instead of
