@@ -1,0 +1,56 @@
+name: "pr15450 toolkit repro"
+
+on:
+  push:
+    branches:
+      - "pr-15450-repro-ci"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: "Targeted repro"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: "Move Docker storage to /mnt"
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h / /mnt
+          sudo systemctl stop docker docker.socket
+          if [ -s /etc/docker/daemon.json ]; then sudo jq '. + {"data-root":"/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json; else echo '{"data-root":"/mnt/docker"}' > /tmp/daemon.json; fi
+          sudo mv /tmp/daemon.json /etc/docker/daemon.json
+          cat /etc/docker/daemon.json
+          sudo systemctl start docker
+          docker info --format '{{.DockerRootDir}}'
+      - name: "Pull unsloth/unsloth"
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          docker pull -q unsloth/unsloth && docker image inspect unsloth/unsloth --format '{{.Id}} {{.Size}}'
+      - name: "Stand in for nvidia-smi (runner has no GPU)"
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          printf '%s\n' '#!/bin/sh' 'case "$*" in *-L*) echo "GPU 0: NVIDIA L4 (UUID: GPU-runner-stand-in)";; *driver_version*) echo 580.65.06;; *) echo stand-in;; esac' | sudo tee /usr/local/bin/nvidia-smi >/dev/null && sudo chmod +x /usr/local/bin/nvidia-smi && nvidia-smi -L
+      - name: "Installer then printed command, merge base vs PR"
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          bash .github/scripts/pr15450_toolkit_repro.sh
+      - name: "Upload logs"
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          ls -la out
