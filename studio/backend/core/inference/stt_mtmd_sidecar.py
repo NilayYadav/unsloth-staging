@@ -1055,8 +1055,6 @@ class MtmdSttSidecar:
         port: int,
         cancel_event: Optional[threading.Event] = None,
     ) -> bool:
-        from core.inference.llama_cpp import LlamaCppBackend
-
         deadline = time.monotonic() + _SERVER_START_TIMEOUT_SECONDS
         url = f"http://127.0.0.1:{port}/health"
         while time.monotonic() < deadline:
@@ -1067,7 +1065,7 @@ class MtmdSttSidecar:
             try:
                 with urllib.request.urlopen(url, timeout = 2) as response:
                     if response.status == 200:
-                        return LlamaCppBackend._health_listener_is_ours(process, port)
+                        return True
             except Exception:
                 pass
             # Outside the except: a non-200 2xx would otherwise spin this loop with no delay.
