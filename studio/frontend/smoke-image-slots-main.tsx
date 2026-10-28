@@ -27,6 +27,7 @@ const toBlob = async () => (await fetch(BLUE)).blob();
 function App() {
   const [a, setA] = useState<string | null>(RED);
   const [b, setB] = useState<string | null>(null);
+  const [c, setC] = useState<string | null>(null);
   useGalleryImageDropSource(toBlob);
   const { tileProps } = useStripReorder(() => {});
   useEffect(() => {
@@ -36,7 +37,7 @@ function App() {
         const r = (id === "g" ? el : el.firstElementChild!).getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
       };
-      log("layout", { a: rect("a"), b: rect("b"), g: rect("g"), dpr: window.devicePixelRatio, iw: innerWidth, ih: innerHeight });
+      log("layout", { a: rect("a"), b: rect("b"), c: rect("c"), g: rect("g"), dpr: window.devicePixelRatio, iw: innerWidth, ih: innerHeight });
     };
     setTimeout(report, 500);
     const seen = new Set<string>();
@@ -61,6 +62,19 @@ function App() {
       }, true);
     }
     window.addEventListener("focus", () => log("focus"));
+    const overSeen = new Set<string>();
+    for (const type of ["dragover", "drop"]) {
+      document.addEventListener(type, (e) => {
+        const t = e.target as HTMLElement;
+        const slot = t?.closest?.("[data-slot]")?.getAttribute("data-slot") ?? t?.tagName;
+        if (type === "dragover") {
+          if (overSeen.has(slot)) return;
+          overSeen.add(slot);
+        }
+        log(type + "-bubble", { target: slot, prevented: e.defaultPrevented, effect: (e as DragEvent).dataTransfer?.dropEffect });
+      });
+    }
+    document.addEventListener("dragstart", () => overSeen.clear(), true);
     (window as any).__TAURI__?.webview?.getCurrentWebview?.().onDragDropEvent?.(({ payload }: any) => {
       if (payload.type !== "over") log("native-" + payload.type, { paths: (payload.paths ?? []).map((p: string) => p.slice(0, 80)) });
     });
@@ -75,6 +89,9 @@ function App() {
         <div data-slot="b">
           <ImageDropzone value={b} onChange={(v) => { setB(v); log("change", { slot: "b", same: v === RED, blue: v !== null && v !== RED, empty: v === null }); }} />
         </div>
+      </div>
+      <div data-slot="c" style={{ margin: "0 40px 24px", width: 328 }}>
+        <ImageDropzone value={c} onChange={(v) => { setC(v); log("change", { slot: "c", same: v === RED, blue: v !== null && v !== RED, empty: v === null }); }} />
       </div>
       <div data-slot="g" {...tileProps("blue")} style={{ margin: "0 40px 24px", width: 96, height: 96, background: "#0050d0" }} />
       <div style={{ padding: "0 40px", fontSize: 14 }} id="state">

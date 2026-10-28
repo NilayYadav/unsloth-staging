@@ -49,26 +49,36 @@ WIN=$(xdotool search --onlyvisible --name '^Unsloth$' | head -1)
 [ -n "$WIN" ] || WIN=$(xdotool search --onlyvisible --class unsloth | head -1)
 echo "window: $WIN"; xdotool getwindowgeometry "$WIN"
 eval "$(xdotool getwindowgeometry --shell "$WIN")"
-read -r AX AY BX BY < <(python3 - "$EV" "$X" "$Y" <<'PY'
+read -r AX AY BX BY CX CY GX GY < <(python3 - "$EV" "$X" "$Y" <<'PY'
 import json, sys
 layout = [json.loads(l.split(" ", 1)[1]) for l in open(sys.argv[1]) if '"layout"' in l][-1]
 ox, oy = int(sys.argv[2]), int(sys.argv[3])
 c = lambda r: (round(ox + r["x"] + r["w"] / 2), round(oy + r["y"] + r["h"] / 2))
-print(*c(layout["a"]), *c(layout["b"]))
+print(*c(layout["a"]), *c(layout["b"]), *c(layout["c"]), *c(layout["g"]))
 PY
 )
-echo "drag ($AX,$AY) -> ($BX,$BY)"
 import -window root "$OUT/before.png" || true
 
-xdotool mousemove "$AX" "$AY"; sleep 0.3
-xdotool mousedown 1; sleep 0.3
-for i in $(seq 1 30); do
-  xdotool mousemove $((AX + (BX - AX) * i / 30)) $((AY + (BY - AY) * i / 30)); sleep 0.05
-done
-sleep 0.5
-xdotool mouseup 1
-sleep 3
-import -window root "$OUT/after.png" || true
+drag() {
+  local x1=$1 y1=$2 x2=$3 y2=$4
+  echo "drag ($x1,$y1) -> ($x2,$y2)"
+  xdotool mousemove "$x1" "$y1"; sleep 0.3
+  xdotool mousedown 1; sleep 0.3
+  for i in $(seq 1 30); do
+    xdotool mousemove $((x1 + (x2 - x1) * i / 30)) $((y1 + (y2 - y1) * i / 30)); sleep 0.05
+  done
+  for d in 2 -2 1 -1; do xdotool mousemove_relative -- "$d" 0; sleep 0.2; done
+  sleep 0.3
+  xdotool mouseup 1
+  sleep 3
+}
+
+echo "mark slot-to-slot" | sed 's/^/0 /' >> "$EV"
+drag "$AX" "$AY" "$BX" "$BY"
+import -window root "$OUT/after-slot.png" || true
+echo '0 {"event":"mark","what":"gallery-to-c"}' >> "$EV"
+drag "$GX" "$GY" "$CX" "$CY"
+import -window root "$OUT/after-gallery.png" || true
 
 echo "--- events ---"; cat "$EV"
 if grep -q '"slot": "b", "same": true' "$EV" || grep -q '"slot":"b","same":true' "$EV"; then
