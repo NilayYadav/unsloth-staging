@@ -1,0 +1,65 @@
+name: Image slot drag (desktop, Linux)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [image-slot-drag-ci]
+
+permissions:
+  contents: read
+
+jobs:
+  drag:
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [main, fix]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use main's image dropzone (before arm)
+        if: matrix.arm == 'main'
+        run: git checkout 06314b97dd6502c84c0ee7e9d453a0dbfdf1f377 -- studio/frontend/src/components/image-dropzone.tsx
+
+      - name: Native deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf xvfb xdotool imagemagick
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: studio/src-tauri -> target
+
+      - name: Install
+        run: |
+          npm ci --prefix studio --no-fund --no-audit
+          npm ci --prefix studio/frontend --no-fund --no-audit
+
+      - name: Drag a filled slot onto an empty one
+        id: drag
+        env:
+          OUT: ${{ github.workspace }}/slot-drag-out
+        run: bash .github/scripts/image-slot-drag-desktop.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slot-drag-${{ matrix.arm }}
+          path: slot-drag-out
+
+      - name: Verdict
+        run: |
+          echo "arm=${{ matrix.arm }} copied=${{ steps.drag.outputs.copied }} toast=${{ steps.drag.outputs.toast }}"
+          if [ "${{ matrix.arm }}" = fix ]; then
+            [ "${{ steps.drag.outputs.copied }}" = 1 ] && [ "${{ steps.drag.outputs.toast }}" = 0 ]
+          fi
