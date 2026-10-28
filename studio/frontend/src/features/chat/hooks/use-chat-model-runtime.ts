@@ -1519,6 +1519,7 @@ export function useChatModelRuntime() {
           (resetsPerModelSettings
             ? {
                 ...DEFAULT_PER_MODEL_CONFIG,
+                kvCacheDtype: live.kvCacheDtype ?? null,
                 tensorParallel: live.tensorParallel ?? false,
                 gpuMemoryMode: live.gpuMemoryMode,
               }
@@ -2050,7 +2051,7 @@ export function useChatModelRuntime() {
             pendingLoadConfig?.chatTemplateOverride?.trim()
               ? pendingLoadConfig.chatTemplateOverride
               : stateBeforeUnload.chatTemplateOverride;
-          let loadKvCacheDtype =
+          const loadKvCacheDtype =
             pendingLoadConfig?.kvCacheDtype ?? stateBeforeUnload.kvCacheDtype;
           let loadMlxKvQuant =
             pendingLoadConfig
@@ -2229,7 +2230,6 @@ export function useChatModelRuntime() {
                 ctxCheckpoints: pendingLoadConfig?.ctxCheckpoints ?? null,
                 cacheRam: pendingLoadConfig?.cacheRam ?? null,
               };
-              loadKvCacheDtype = pendingLoadConfig?.kvCacheDtype ?? null;
               loadMlxKvQuant = pendingLoadConfig?.mlxKvQuant ?? null;
               loadMlxInt8Prefill = pendingLoadConfig?.mlxInt8Prefill ?? false;
               loadMlxPleOffload = pendingLoadConfig?.mlxPleOffload ?? null;
