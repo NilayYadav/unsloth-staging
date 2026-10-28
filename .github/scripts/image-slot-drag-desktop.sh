@@ -26,14 +26,20 @@ chmod +x "$H/.unsloth/studio/unsloth_studio/bin/unsloth"
 
 Xvfb :99 -screen 0 1440x900x24 -nolisten tcp > "$OUT/xvfb.log" 2>&1 &
 for _ in $(seq 1 40); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.25; done
+export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}" CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 export DISPLAY=:99 HOME="$H" XDG_RUNTIME_DIR="$H/xdg" XDG_CONFIG_HOME="$H/.config"
 chmod 700 "$XDG_RUNTIME_DIR"
 
 npx --prefix "$GITHUB_WORKSPACE/studio" tauri dev \
   --config '{"build":{"devUrl":"http://localhost:5173/smoke-image-slots.html"}}' \
   > "$OUT/tauri-dev.log" 2>&1 &
+DEV=$!
 
-for _ in $(seq 1 1200); do grep -q '"layout"' "$EV" && break; sleep 1; done
+for _ in $(seq 1 1500); do
+  grep -q '"layout"' "$EV" && break
+  kill -0 "$DEV" 2>/dev/null || break
+  sleep 1
+done
 if ! grep -q '"layout"' "$EV"; then
   echo "::error::test page never loaded"; tail -60 "$OUT/tauri-dev.log"; exit 1
 fi
