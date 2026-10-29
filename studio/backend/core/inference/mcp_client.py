@@ -63,15 +63,9 @@ def _account_key(value):
     return current_account_id(), value
 
 
-def _public_mcp_addresses(url: str) -> list[str]:
+def _public_mcp_address(url: str) -> str:
     from fastapi import HTTPException
-    from core.inference.providers import _metadata_address, _metadata_host, managed_private_url_hint
-    from utils.managed_provider_url_settings import get_managed_private_provider_urls_allowed
-
-    private_allowed = get_managed_private_provider_urls_allowed()
     detail = "Managed accounts may only use public-network HTTP MCP servers."
-    if not private_allowed:
-        detail += managed_private_url_hint()
     try:
         parsed = urlsplit(url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
@@ -81,8 +75,6 @@ def _public_mcp_addresses(url: str) -> list[str]:
         host = parsed.hostname
         if "%" in host:
             raise ValueError("Scoped addresses are not public")
-        if _metadata_host(host):
-            raise ValueError("Cloud metadata address")
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         addresses = socket.getaddrinfo(host, port, type = socket.SOCK_STREAM)
         if not addresses:
@@ -90,13 +82,9 @@ def _public_mcp_addresses(url: str) -> list[str]:
         for *_, sockaddr in addresses:
             address = ipaddress.ip_address(sockaddr[0])
             address = getattr(address, "ipv4_mapped", None) or address
-            if _metadata_address(str(address)):
-                raise ValueError("Cloud metadata address")
-            if private_allowed:
-                continue
             if not address.is_global or address.is_multicast or address.is_reserved:
                 raise ValueError("Non-public address")
-        return list(dict.fromkeys(sockaddr[0] for *_, sockaddr in addresses))
+        return addresses[0][4][0]
     except (OSError, ValueError, UnicodeError) as exc:
         raise HTTPException(status_code = 400, detail = detail) from exc
 
@@ -111,7 +99,7 @@ def validate_mcp_address(url: str) -> None:
             status_code = 400,
             detail = "Only the installation owner may register local-command MCP servers.",
         )
-    _public_mcp_addresses(url)
+    _public_mcp_address(url)
 
 
 def _public_http_client_factory(**kwargs):
@@ -127,24 +115,18 @@ def _public_http_client_factory(**kwargs):
             self.transports = {}
 
         async def handle_async_request(self, request):
-            addresses = await asyncio.to_thread(_public_mcp_addresses, str(request.url))
+            address = await asyncio.to_thread(_public_mcp_address, str(request.url))
             origin = (request.url.scheme, request.url.host, request.url.port)
             if origin not in self.transports:
                 self.transports[origin] = http.AsyncHTTPTransport(trust_env = False)
-            # localhost answers ::1 first while most local servers bind 127.0.0.1 only.
-            for index, address in enumerate(addresses):
-                pinned = http.Request(
-                    method = request.method,
-                    url = request.url.copy_with(host = address),
-                    headers = request.headers,
-                    stream = request.stream,
-                    extensions = {**request.extensions, "sni_hostname": request.url.host},
-                )
-                try:
-                    return await self.transports[origin].handle_async_request(pinned)
-                except (http.ConnectError, http.ConnectTimeout):
-                    if index == len(addresses) - 1:
-                        raise
+            pinned = http.Request(
+                method = request.method,
+                url = request.url.copy_with(host = address),
+                headers = request.headers,
+                stream = request.stream,
+                extensions = {**request.extensions, "sni_hostname": request.url.host},
+            )
+            return await self.transports[origin].handle_async_request(pinned)
 
         async def aclose(self):
             for transport in self.transports.values():
