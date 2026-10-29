@@ -36,7 +36,6 @@ from .os_sandbox import (
     editable_source_roots,
     scan_workdir_for_host_channels,
     model_library_roots,
-    session_package_paths,
     studio_state_roots,
 )
 
@@ -708,7 +707,7 @@ def _tmpdir(plan: ToolLaunchPlan, workdir: str) -> str:
 def _pythonpath(plan: ToolLaunchPlan, packages: str) -> str:
     """Appended, never prepended: a package must not shadow tools.py's sandbox_site shim."""
     inherited = plan.env.get("PYTHONPATH") or ""
-    return os.pathsep.join(part for part in (inherited, *session_package_paths(packages)) if part)
+    return os.pathsep.join(part for part in (inherited, packages) if part)
 
 
 def _path(plan: ToolLaunchPlan, packages: str) -> str:
@@ -1053,11 +1052,8 @@ def prepare(plan: ToolLaunchPlan) -> PreparedSandboxLaunch:
             "TMPDIR",
             _tmpdir(plan, workdir),
             "--setenv",
-            "PIP_PREFIX",
+            "PIP_TARGET",
             packages,
-            "--setenv",
-            "PIP_IGNORE_INSTALLED",
-            "1",
             "--setenv",
             "PYTHONPATH",
             _pythonpath(plan, packages),

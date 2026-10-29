@@ -27,7 +27,6 @@ from .os_sandbox import (
     editable_source_roots,
     model_library_roots,
     scan_workdir_for_host_channels,
-    session_package_paths,
     studio_state_roots,
 )
 
@@ -667,16 +666,13 @@ def _sandbox_environment(env: dict[str, str], workdir: str, private_tmp: str) ->
             "TMP": tmpdir,
             "TEMP": tmpdir,
             "XDG_RUNTIME_DIR": private_tmp,
-            "PIP_PREFIX": packages,
-            "PIP_IGNORE_INSTALLED": "1",
+            "PIP_TARGET": packages,
             # <target>/bin LAST: it is tool-writable and must not shadow a command approval treats as safe.
             "PATH": os.pathsep.join(
                 part for part in (env.get("PATH") or "", posixpath.join(packages, "bin")) if part
             ),
             "PYTHONPATH": os.pathsep.join(
-                part
-                for part in (env.get("PYTHONPATH") or "", *session_package_paths(packages))
-                if part
+                part for part in (env.get("PYTHONPATH") or "", packages) if part
             ),
         }
     )
