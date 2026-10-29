@@ -27,7 +27,6 @@ export function DownloadSection({
   gpuGb,
   gpuCount,
   systemRamGb,
-  unifiedLoadBudgetGb,
   cachePath,
   knownBytes,
   onRun,
@@ -56,7 +55,6 @@ export function DownloadSection({
   gpuGb?: number;
   gpuCount?: number;
   systemRamGb?: number;
-  unifiedLoadBudgetGb?: number | null;
   cachePath?: string | null;
   knownBytes?: number | null;
   onRun?: (selection: HubModelRunSelection) => void;
@@ -81,7 +79,6 @@ export function DownloadSection({
         gpuGb={gpuGb}
         gpuCount={gpuCount}
         systemRamGb={systemRamGb}
-        unifiedLoadBudgetGb={unifiedLoadBudgetGb}
         cachePath={cachePath}
         isPartial={isPartial}
         onRun={onRun}
