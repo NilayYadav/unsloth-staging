@@ -23,9 +23,11 @@ from studio_test_kit.ui import open_chat
 ARM = os.environ.get("PROBE_ARM", "unknown")
 CAP = 65536
 MODELS = [
+    ("unsloth/Qwen3.5-0.8B-GGUF", "Q4_K_M", 0),
+    ("unsloth/granite-4.0-h-350m-GGUF", "Q4_K_M", 0),
+    ("LiquidAI/LFM2-350M-GGUF", "Q4_K_M", 0),
     ("unsloth/Llama-3.2-1B-Instruct-GGUF", "Q4_K_M", 0),
-    ("unsloth/LFM2-350M-GGUF", "Q4_K_M", 0),
-    ("unsloth/LFM2-350M-GGUF", "Q4_K_M", 100000),
+    ("LiquidAI/LFM2-350M-GGUF", "Q4_K_M", 100000),
 ]
 NEW_PASSWORD = "StudioLive-" + uuid.uuid4().hex[:12] + "-Pw1!"
 _SAVED_RE = re.compile(r"password saved to:\s*(\S+)")
