@@ -160,7 +160,7 @@ async def main() -> None:
                 if procs:
                     log("ARGV " + " ".join(procs[0]["argv"]))
                 results.append(res)
-                if idx == 0 and r.status_code == 200:
+                if not req_ctx and r.status_code == 200:
                     try:
                         async with open_chat(base, init_scripts=[init]) as sp:
                             await sp.page.wait_for_timeout(8000)
