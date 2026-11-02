@@ -4,8 +4,5 @@
 """Data Recipe core (DataDesigner wrapper + job runner)."""
 
 from .jobs import JobManager, get_job_manager
-from .mcp_compat import install_streamablehttp_alias
-
-install_streamablehttp_alias()
 
 __all__ = ["JobManager", "get_job_manager"]
