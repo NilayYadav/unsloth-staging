@@ -275,9 +275,9 @@ if _IS_MLX:
         from unsloth_zoo.mlx.trainer import (
             MLXTrainer,
             MLXTrainingConfig,
+            _is_vlm_model,
             _normalize_mlx_optimizer_name,
         )
-        from unsloth_zoo.mlx import trainer as _mlx_zoo_trainer
         from unsloth_zoo.mlx.loader import FastMLXModel
     except ImportError as _e:
         raise ImportError(
@@ -286,7 +286,6 @@ if _IS_MLX:
             "`pip install -U unsloth-zoo` or rerun install.sh."
         ) from _e
 
-    import copy as _copy
     import dataclasses as _dataclasses
     import inspect as _inspect
     import importlib.machinery as _machinery
@@ -408,15 +407,15 @@ if _IS_MLX:
         def for_inference(*args, **kwargs):
             return args[0] if args else None
 
-        @staticmethod
-        def for_training(*args, **kwargs):
-            return args[0] if args else None
-
     class FastVisionModel(FastLanguageModel):
         @staticmethod
         def from_pretrained(*args, **kwargs):
             kwargs.setdefault("text_only", False)
             return _mlx_from_pretrained(*args, **kwargs)
+
+        @staticmethod
+        def for_training(*args, **kwargs):
+            return args[0] if args else None
 
     FastTextModel = FastLanguageModel
     FastModel = FastLanguageModel
@@ -677,7 +676,6 @@ if _IS_MLX:
     _MLX_TRAINING_ARGUMENT_ALIASES = {
         "max_length": "max_seq_length",
         "loraplus_lr_ratio": "lora_plus_ratio",
-        "evaluation_strategy": "eval_strategy",
     }
     _MLX_COMPAT_EXTRA_ARGUMENTS = frozenset(
         (
@@ -687,34 +685,40 @@ if _IS_MLX:
             "dataset_kwargs",
             "ddp_find_unused_parameters",
             "disable_tqdm",
+            "eval_strategy",
+            "evaluation_strategy",
             "fp16",
             "full_determinism",
             "gradient_checkpointing_kwargs",
             "hub_model_id",
             "hub_token",
             "log_level",
+            "logging_strategy",
+            "neftune_noise_alpha",
+            "optim_args",
             "padding_free",
             "push_to_hub",
             "remove_unused_columns",
             "save_on_each_node",
             "save_safetensors",
+            "save_strategy",
             "torch_compile",
         )
     )
     _MLX_IMPLEMENTED_EXTRA_ARGUMENTS = frozenset(
         (
-            "eval_delay",
-            "eval_strategy",
             "image_size",
-            "include_num_input_tokens_seen",
-            "logging_first_step",
-            "logging_strategy",
             "preserve_dataset_order",
-            "save_strategy",
             "warmup_ratio",
         )
     )
     _MLX_ALLOWED_EXTRA_ARGUMENTS = _MLX_COMPAT_EXTRA_ARGUMENTS | _MLX_IMPLEMENTED_EXTRA_ARGUMENTS
+    _MLX_UNSUPPORTED_TASK_ARGUMENTS = frozenset(
+        (
+            "assistant_only_loss",
+            "completion_only_loss",
+        )
+    )
 
     def _is_mlx_no_save_strategy(value):
         if hasattr(value, "value"):
@@ -766,9 +770,9 @@ if _IS_MLX:
                 return "adamw"
             raise
 
-    def _mlx_training_argument_values(args, config_class = MLXTrainingConfig):
+    def _mlx_training_argument_values(args):
         values = {}
-        for field in _dataclasses.fields(config_class):
+        for field in _dataclasses.fields(MLXTrainingConfig):
             if hasattr(args, field.name):
                 values[field.name] = _normalize_mlx_training_value(
                     field.name,
@@ -782,47 +786,31 @@ if _IS_MLX:
         for name in _MLX_ALLOWED_EXTRA_ARGUMENTS:
             if hasattr(args, name):
                 values[name] = getattr(args, name)
-        trl_arguments = getattr(config_class, "_unsloth_mlx_trl_arguments", None)
-        if trl_arguments is not None:
-            for name in trl_arguments:
-                if name not in values and hasattr(args, name):
-                    values[name] = getattr(args, name)
-            # Anything else set is refused. Compare to a fresh config: TrainingArguments rewrites fields at init.
-            if not isinstance(args, MLXTrainingConfig) and _dataclasses.is_dataclass(args):
-                fresh = type(args)(output_dir = args.output_dir)
-                for field in _dataclasses.fields(args):
-                    if (
-                        field.init
-                        and field.name not in values
-                        and field.name not in ("do_eval", "do_predict", "do_train")
-                    ):
-                        value = getattr(args, field.name, None)
-                        if value != getattr(fresh, field.name, None):
-                            values[field.name] = value
+        for name in _MLX_UNSUPPORTED_TASK_ARGUMENTS:
+            if hasattr(args, name):
+                value = getattr(args, name)
+                if (
+                    name == "completion_only_loss"
+                    and value is not None
+                    and name in _MLX_TRAINING_CONFIG_FIELDS
+                ):
+                    values[name] = value
+                elif value is not None and value is not False:
+                    values[name] = value
         if _is_mlx_no_save_strategy(values.get("save_strategy", None)):
             values["save_steps"] = 0
         return values
 
-    def _split_mlx_trainer_kwargs(
-        kwargs,
-        extra_trainer_kwargs = (),
-        config_class = MLXTrainingConfig,
-    ):
+    def _split_mlx_trainer_kwargs(kwargs):
         trainer_kwargs = {}
         config_kwargs = {}
         ignored_kwargs = {}
-        config_fields = {field.name for field in _dataclasses.fields(config_class)}
-        aliases = getattr(
-            config_class,
-            "_unsloth_mlx_argument_aliases",
-            _MLX_TRAINING_ARGUMENT_ALIASES,
-        )
         for key, value in kwargs.items():
-            if key in _MLX_TRAINER_KWARGS or key in extra_trainer_kwargs:
+            if key in _MLX_TRAINER_KWARGS:
                 trainer_kwargs[key] = value
                 continue
-            target = aliases.get(key, key)
-            if target in config_fields or target in _MLX_ALLOWED_EXTRA_ARGUMENTS:
+            target = _MLX_TRAINING_ARGUMENT_ALIASES.get(key, key)
+            if target in _MLX_TRAINING_CONFIG_FIELDS or key in _MLX_ALLOWED_EXTRA_ARGUMENTS:
                 config_kwargs[key] = value
             else:
                 ignored_kwargs[key] = value
@@ -855,22 +843,15 @@ if _IS_MLX:
             raise TypeError(f"UnslothTrainer.__init__() got multiple values for argument {name!r}")
         kwargs[name] = value
 
-    def _normalize_mlx_trainer_init_args(
-        args,
-        kwargs,
-        positional_names = None,
-    ):
+    def _normalize_mlx_trainer_init_args(args, kwargs):
         kwargs = dict(kwargs)
         if len(args) == 0:
             return kwargs
 
-        if positional_names is None:
-            use_trl_schema = _should_use_trl_positional_schema(args)
-            positional_names = (
-                _TRL_SFT_TRAINER_POSITIONAL_KWARGS
-                if use_trl_schema
-                else _MLX_TRAINER_POSITIONAL_KWARGS
-            )
+        use_trl_schema = _should_use_trl_positional_schema(args)
+        positional_names = (
+            _TRL_SFT_TRAINER_POSITIONAL_KWARGS if use_trl_schema else _MLX_TRAINER_POSITIONAL_KWARGS
+        )
         if len(args) > len(positional_names):
             raise TypeError(
                 f"UnslothTrainer.__init__() takes at most "
@@ -912,7 +893,7 @@ if _IS_MLX:
             return False
         return _is_meaningful_mlx_extra_value(value)
 
-    def _raise_unsupported_mlx_trainer_kwargs(ignored_kwargs, trainer_name = "SFTTrainer"):
+    def _raise_unsupported_mlx_trainer_kwargs(ignored_kwargs):
         names = sorted(
             key
             for key, value in ignored_kwargs.items()
@@ -921,7 +902,7 @@ if _IS_MLX:
         if not names:
             return
         raise NotImplementedError(
-            f"Unsloth MLX: unsupported {trainer_name} kwargs cannot be ignored safely: "
+            "Unsloth MLX: unsupported SFTTrainer kwargs cannot be ignored safely: "
             f"{', '.join(names)}. Remove these kwargs or use a supported MLX "
             "trainer configuration."
         )
@@ -967,8 +948,6 @@ if _IS_MLX:
     class UnslothTrainingArguments(MLXTrainingConfig):
         """MLX-compatible public training arguments for Unsloth notebooks."""
 
-        _unsloth_mlx_argument_aliases = _MLX_TRAINING_ARGUMENT_ALIASES
-
         def __init__(self, *args, **kwargs):
             if len(args) == 1 and isinstance(args[0], dict):
                 kwargs = {**args[0], **kwargs}
@@ -980,20 +959,16 @@ if _IS_MLX:
                     "a dict, or a single positional output_dir."
                 )
 
-            aliases = self._unsloth_mlx_argument_aliases
-            config_fields = {field.name for field in _dataclasses.fields(type(self))}
-            max_length_is_alias = "max_length" in aliases
-            max_length_value = kwargs.get("max_length", None) if max_length_is_alias else None
+            max_length_value = kwargs.get("max_length", None)
             # Only the canonical max_seq_length marks context length explicit; TRL max_length stays a
             # compatibility alias that defers to the model's context length.
             max_seq_length_explicit = (
                 _positive_mlx_context_length(kwargs.get("max_seq_length", None)) is not None
             )
-            if max_length_is_alias and "max_length" in kwargs and "max_seq_length" not in kwargs:
+            if "max_length" in kwargs and "max_seq_length" not in kwargs:
                 kwargs["max_seq_length"] = kwargs["max_length"]
             elif (
-                max_length_is_alias
-                and "max_length" in kwargs
+                "max_length" in kwargs
                 and _positive_mlx_context_length(kwargs.get("max_seq_length", None)) is not None
             ):
                 max_length_value = kwargs["max_seq_length"]
@@ -1019,11 +994,21 @@ if _IS_MLX:
             filtered_kwargs = {}
             extra_kwargs = {}
             for key, value in kwargs.items():
-                target = aliases.get(key, key)
+                target = _MLX_TRAINING_ARGUMENT_ALIASES.get(key, key)
                 if key != target and target in kwargs:
                     continue
                 value = _normalize_mlx_training_value(target, value)
-                if target in config_fields:
+                if target in _MLX_UNSUPPORTED_TASK_ARGUMENTS:
+                    if (
+                        target == "completion_only_loss"
+                        and value is not None
+                        and target in _MLX_TRAINING_CONFIG_FIELDS
+                    ):
+                        filtered_kwargs[target] = value
+                    elif _is_meaningful_mlx_extra_value(value):
+                        extra_kwargs[key] = value
+                    continue
+                if target in _MLX_TRAINING_CONFIG_FIELDS:
                     filtered_kwargs[target] = value
                 else:
                     extra_kwargs[target if target in _MLX_ALLOWED_EXTRA_ARGUMENTS else key] = value
@@ -1053,7 +1038,7 @@ if _IS_MLX:
             self._unsloth_mlx_append_eos_explicit = append_eos_explicit
             self._unsloth_mlx_max_seq_length_explicit = max_seq_length_explicit
             self._unsloth_mlx_max_length_value = max_length_value
-            if max_length_is_alias and "max_length" in kwargs:
+            if "max_length" in kwargs:
                 self.max_length = max_length_value
             self._unsloth_mlx_grad_clip_explicit = grad_clip_explicit
             self._unsloth_mlx_warmup_steps_explicit = warmup_steps_explicit
@@ -1061,10 +1046,6 @@ if _IS_MLX:
             for key, value in extra_kwargs.items():
                 setattr(self, key, value)
             _warn_ignored_mlx_training_args(extra_kwargs)
-            # Like TrainingArguments: zoo's eval_steps=0 would silently never evaluate.
-            eval_strategy = getattr(self, "eval_strategy", None)
-            if getattr(eval_strategy, "value", eval_strategy) == "steps" and not self.eval_steps:
-                self.eval_steps = self.logging_steps
 
     def _resolve_mlx_cuda_style_max_seq_length(args, model = None):
         model_max_seq_length = _positive_mlx_context_length(
@@ -1129,7 +1110,11 @@ if _IS_MLX:
         _set_mlx_cuda_style_context_length(args, 1024)
         return args
 
-    def _default_mlx_dataset_order(args):
+    def _apply_unsloth_trainer_mlx_defaults(
+        args,
+        model = None,
+        max_seq_length_explicit = False,
+    ):
         if (
             not getattr(args, "streaming", False)
             and not getattr(args, "preserve_dataset_order", False)
@@ -1139,7 +1124,11 @@ if _IS_MLX:
             if getattr(args, "dataset_order", default_order) in (None, default_order):
                 args.dataset_order = "torch_randperm"
 
-    def _default_mlx_grad_clip(args):
+        if isinstance(args, UnslothTrainingArguments) and not getattr(
+            args, "_unsloth_mlx_append_eos_explicit", False
+        ):
+            args.append_eos = False
+
         if isinstance(args, UnslothTrainingArguments) and not getattr(
             args, "_unsloth_mlx_grad_clip_explicit", False
         ):
@@ -1155,33 +1144,14 @@ if _IS_MLX:
             if max_grad_norm is None and max_grad_value is None and max_grad_leaf_norm is None:
                 args.max_grad_norm = 1.0
 
-    def _apply_unsloth_trainer_mlx_defaults(
-        args,
-        model = None,
-        max_seq_length_explicit = False,
-    ):
-        _default_mlx_dataset_order(args)
-
-        if isinstance(args, UnslothTrainingArguments) and not getattr(
-            args, "_unsloth_mlx_append_eos_explicit", False
-        ):
-            args.append_eos = False
-
-        _default_mlx_grad_clip(args)
-
         if not max_seq_length_explicit:
             _resolve_mlx_cuda_style_max_seq_length(args, model = model)
         return args
 
-    def _coerce_mlx_training_args(
-        args,
-        overrides = None,
-        config_class = None,
-    ):
+    def _coerce_mlx_training_args(args, overrides = None):
         overrides = overrides or {}
-        if isinstance(args, config_class or MLXTrainingConfig) and not overrides:
+        if isinstance(args, MLXTrainingConfig) and not overrides:
             return args
-        config_class = config_class or UnslothTrainingArguments
         dataset_order_explicit = None
         append_eos_explicit = None
         max_seq_length_explicit = None
@@ -1228,23 +1198,11 @@ if _IS_MLX:
                 "_unsloth_mlx_grad_clip_explicit",
                 None,
             )
-            values = _mlx_training_argument_values(args, config_class)
+            values = _mlx_training_argument_values(args)
             if hasattr(args, "max_length"):
                 values["max_length"] = getattr(args, "max_length")
-            if (
-                values.get("warmup_ratio")
-                and getattr(args, "_unsloth_mlx_warmup_steps_explicit", True) is False
-            ):
-                values.pop("warmup_steps", None)
-        values.update(
-            {
-                (
-                    key if key == "max_length" else _MLX_TRAINING_ARGUMENT_ALIASES.get(key, key)
-                ): value
-                for key, value in overrides.items()
-            }
-        )
-        coerced = config_class(**values)
+        values.update(overrides)
+        coerced = UnslothTrainingArguments(**values)
         if (
             dataset_order_explicit is not None
             and "dataset_order" not in overrides
@@ -1256,10 +1214,7 @@ if _IS_MLX:
         if (
             max_seq_length_explicit is not None
             and "max_seq_length" not in overrides
-            and (
-                "max_length" not in overrides
-                or "max_length" not in config_class._unsloth_mlx_argument_aliases
-            )
+            and "max_length" not in overrides
         ):
             coerced._unsloth_mlx_max_seq_length_explicit = max_seq_length_explicit
         if max_length_value is not None and "max_length" not in overrides:
@@ -1306,12 +1261,12 @@ if _IS_MLX:
     )
     _MLX_TRAINER_KWARGS = frozenset(_MLX_TRAINER_POSITIONAL_KWARGS)
 
-    def _filter_supported_mlx_trainer_kwargs(trainer_kwargs, extra_trainer_kwargs = ()):
+    def _filter_supported_mlx_trainer_kwargs(trainer_kwargs):
         """Drop inert/empty kwargs unsupported by this zoo MLXTrainer."""
         unsupported = {
             key: value
             for key, value in trainer_kwargs.items()
-            if not _mlx_trainer_supports_kwarg(key) and key not in extra_trainer_kwargs
+            if not _mlx_trainer_supports_kwarg(key)
         }
         names = sorted(
             key for key, value in unsupported.items() if _is_meaningful_mlx_extra_value(value)
@@ -1425,27 +1380,8 @@ if _IS_MLX:
     class UnslothTrainer(MLXTrainer):
         """Backend-aware public trainer that routes supported SFT notebooks to MLX."""
 
-        _unsloth_mlx_trainer_name = "SFTTrainer"
-        _unsloth_mlx_positional_kwargs = None
-        _unsloth_mlx_extra_kwargs = frozenset()
-        _unsloth_mlx_config_class = MLXTrainingConfig
-
-        def _unsloth_mlx_coerce_args(self, args, overrides):
-            return _coerce_mlx_training_args(args, overrides)
-
-        def _unsloth_mlx_apply_defaults(self, args, model, max_seq_length_explicit):
-            return _apply_unsloth_trainer_mlx_defaults(
-                args,
-                model = model,
-                max_seq_length_explicit = max_seq_length_explicit,
-            )
-
         def __init__(self, *args, **kwargs):
-            kwargs = _normalize_mlx_trainer_init_args(
-                args,
-                kwargs,
-                self._unsloth_mlx_positional_kwargs,
-            )
+            kwargs = _normalize_mlx_trainer_init_args(args, kwargs)
             processing_class = kwargs.pop("processing_class", None)
             processor_from_processing_class = False
             if processing_class is not None:
@@ -1523,24 +1459,33 @@ if _IS_MLX:
                         "trainer's native batching path."
                     )
 
-            trainer_kwargs, config_kwargs, ignored_kwargs = _split_mlx_trainer_kwargs(
-                kwargs,
-                self._unsloth_mlx_extra_kwargs,
-                self._unsloth_mlx_config_class,
-            )
-            _raise_unsupported_mlx_trainer_kwargs(ignored_kwargs, self._unsloth_mlx_trainer_name)
-            trainer_kwargs = _filter_supported_mlx_trainer_kwargs(
-                trainer_kwargs,
-                self._unsloth_mlx_extra_kwargs,
-            )
-            trainer_kwargs["args"] = self._unsloth_mlx_coerce_args(
+            trainer_kwargs, config_kwargs, ignored_kwargs = _split_mlx_trainer_kwargs(kwargs)
+            _raise_unsupported_mlx_trainer_kwargs(ignored_kwargs)
+            trainer_kwargs = _filter_supported_mlx_trainer_kwargs(trainer_kwargs)
+            trainer_kwargs["args"] = _coerce_mlx_training_args(
                 trainer_kwargs.get("args"),
                 config_kwargs,
             )
-            trainer_kwargs["args"] = self._unsloth_mlx_apply_defaults(
+            if getattr(
+                trainer_kwargs["args"], "completion_only_loss", None
+            ) is True and not _is_vlm_model(trainer_kwargs.get("model")):
+                raise NotImplementedError(
+                    "Unsloth MLX: completion_only_loss=True is only supported "
+                    "for VLM training. For text SFT, call train_on_responses_only "
+                    "after constructing the trainer."
+                )
+            if getattr(
+                trainer_kwargs["args"], "train_on_completions", None
+            ) is True and not _is_vlm_model(trainer_kwargs.get("model")):
+                raise NotImplementedError(
+                    "Unsloth MLX: train_on_completions=True is only supported "
+                    "for VLM training. For text SFT, call train_on_responses_only "
+                    "after constructing the trainer."
+                )
+            trainer_kwargs["args"] = _apply_unsloth_trainer_mlx_defaults(
                 trainer_kwargs["args"],
-                trainer_kwargs.get("model"),
-                trainer_kwargs.get("max_seq_length") is not None,
+                model = trainer_kwargs.get("model"),
+                max_seq_length_explicit = (trainer_kwargs.get("max_seq_length") is not None),
             )
 
             super().__init__(**trainer_kwargs)
@@ -1549,9 +1494,7 @@ if _IS_MLX:
                 if processing_class is not None
                 else self.processor or self.tokenizer
             )
-            if trainer_kwargs.get("max_seq_length") is not None and not getattr(
-                self, "preference_kind", None
-            ):
+            if trainer_kwargs.get("max_seq_length") is not None:
                 _set_mlx_cuda_style_context_length(
                     self.args,
                     self.args.max_seq_length,
@@ -1625,17 +1568,6 @@ if _IS_MLX:
             )
         return _train_on_responses_only(*args, **kwargs)
 
-    def PatchDPOTrainer():
-        """No-op on MLX: trl's preference trainers already resolve to the MLX ones."""
-
-    def PatchKTOTrainer():
-        """No-op on MLX: trl's preference trainers already resolve to the MLX ones."""
-
-    def PatchFastRL(algorithm = None, FastLanguageModel = None):
-        """No-op on MLX: trl's RL trainers already resolve to the MLX ones."""
-
-    _mlx_trl_mapped_names = {"SFTConfig", "SFTTrainer"}
-
     def _safe_mlx_trl_star_exports(_trl, exports):
         """Return importable TRL star exports plus the MLX SFT shims."""
         safe_exports = []
@@ -1645,22 +1577,26 @@ if _IS_MLX:
             except Exception:
                 continue
             safe_exports.append(name)
-        for name in sorted(_mlx_trl_mapped_names):
+        for name in ("SFTConfig", "SFTTrainer"):
             if name not in safe_exports:
                 safe_exports.append(name)
         return safe_exports
 
     # Stub trl trainers with no MLX implementation so they fail clearly instead of deep in torch code.
     _MLX_UNSUPPORTED_TRL_TRAINERS = (
+        "GRPOTrainer",
+        "DPOTrainer",
+        "ORPOTrainer",
+        "KTOTrainer",
         "PPOTrainer",
         "RewardTrainer",
     )
 
-    def _make_mlx_unsupported_trl_trainer(name, supported):
+    def _make_mlx_unsupported_trl_trainer(name):
         def __init__(self, *args, **kwargs):
             raise NotImplementedError(
                 f"Unsloth: {name} is not yet supported on the MLX (Apple Silicon) "
-                f"backend, which runs {', '.join(supported)}; use a CUDA/ROCm GPU "
+                f"backend. Only SFT training runs on MLX today; use a CUDA/ROCm GPU "
                 f"for {name}."
             )
 
@@ -1684,247 +1620,6 @@ if _IS_MLX:
                 kwargs.setdefault("num_train_epochs", 3)
             super().__init__(*args, **kwargs)
 
-    # TRL's own defaults: zoo's base config would run DPO at 200x the learning rate with no signal.
-    _MLX_TRL_CONFIG_DEFAULTS = {
-        "learning_rate": 1e-6,
-        "per_device_train_batch_size": 8,
-        "gradient_accumulation_steps": 1,
-        "save_steps": 500,
-        "warmup_steps": 0,
-        "weight_decay": 0.0,
-    }
-    _MLX_TRL_INERT_CONFIG_VALUES = {
-        "base_model_attribute_name": "model",
-        "cache_implementation": None,
-        "ds3_gather_for_generation": True,
-        "f_divergence_type": "reverse_kl",
-        "is_encoder_decoder": None,
-        "label_pad_token_id": -100,
-        "ld_alpha": None,
-        "model_init_kwargs": None,
-        "padding_value": None,
-        "ref_model_init_kwargs": None,
-        "rpo_alpha": None,
-        "tools": None,
-        "use_liger_loss": False,
-        "use_logits_to_keep": False,
-        "use_transformers_paged": False,
-        "use_weighting": False,
-        "wandb_log_unique_prompts": False,
-    }
-
-    class _MLXTRLConfig(_MLXSFTConfig):
-        _unsloth_mlx_trl_arguments = (*_MLX_TRL_INERT_CONFIG_VALUES, "f_alpha_divergence_coef")
-
-        def __init__(self, *args, **kwargs):
-            if len(args) == 1 and isinstance(args[0], dict):
-                kwargs = {**args[0], **kwargs}
-                args = ()
-            config_fields = {field.name for field in _dataclasses.fields(type(self))}
-            divergence = kwargs.get("f_divergence_type", "reverse_kl")
-            # Only alpha_divergence reads it, and its default differs across TRL releases.
-            if getattr(divergence, "value", divergence) == "reverse_kl":
-                kwargs.pop("f_alpha_divergence_coef", None)
-            for key, value in _MLX_TRL_INERT_CONFIG_VALUES.items():
-                if key not in config_fields and key in kwargs:
-                    if getattr(kwargs[key], "value", kwargs[key]) == value:
-                        del kwargs[key]
-            for key, value in _MLX_TRL_CONFIG_DEFAULTS.items():
-                kwargs.setdefault(key, value)
-            super().__init__(*args, **kwargs)
-
-    class _MLXTRLPolicyTrainer(UnslothTrainer):
-        _unsloth_mlx_keep_dataset_order = False
-
-        def __init__(self, *args, **kwargs):
-            kwargs = _normalize_mlx_trainer_init_args(
-                args,
-                kwargs,
-                self._unsloth_mlx_positional_kwargs,
-            )
-            for key in ("model", "ref_model"):
-                if isinstance(kwargs.get(key), (str, os.PathLike)):
-                    raise NotImplementedError(
-                        f"Unsloth MLX: {self._unsloth_mlx_trainer_name} needs {key} loaded "
-                        "with FastLanguageModel.from_pretrained, not a model name."
-                    )
-            super().__init__(**kwargs)
-
-        def _unsloth_mlx_coerce_args(self, args, overrides):
-            if self.preference_kind == "grpo" and args is not None:
-                # Its config resolution is not idempotent, and TRL's fills in both batch knobs zoo requires one of.
-                if overrides or not isinstance(args, (self.config_class, dict, str, os.PathLike)):
-                    raise NotImplementedError(
-                        "Unsloth MLX: set every GRPO option on a GRPOConfig built after "
-                        "`import unsloth`, not on an existing config or the trainer."
-                    )
-            if not isinstance(args, self.config_class):
-                return _coerce_mlx_training_args(args, overrides, self._unsloth_mlx_config_class)
-            if not overrides:
-                return args
-            return _coerce_mlx_training_args(args, overrides, self._unsloth_mlx_config_class)
-
-        def _unsloth_mlx_apply_defaults(self, args, model, max_seq_length_explicit):
-            # args may be the caller's config, which another trainer can reuse.
-            args = _copy.copy(args)
-            if not self._unsloth_mlx_keep_dataset_order:
-                _default_mlx_dataset_order(args)
-            _default_mlx_grad_clip(args)
-            model_length = _positive_mlx_context_length(getattr(model, "max_seq_length", None))
-            args_explicit = getattr(args, "_unsloth_mlx_max_seq_length_explicit", None)
-            if args_explicit is None:
-                args_explicit = args.max_seq_length != MLXTrainingConfig.max_seq_length
-            args_explicit = max_seq_length_explicit or args_explicit
-            if model_length is not None and (
-                not args_explicit or args.max_seq_length > model_length
-            ):
-                args.max_seq_length = model_length
-            return args
-
-    _MLX_TRL_POLICY_TRAINERS = (
-        (
-            "DPO",
-            "MLXDPOTrainer",
-            "MLXDPOConfig",
-            (
-                "model",
-                "ref_model",
-                "args",
-                "data_collator",
-                "train_dataset",
-                "eval_dataset",
-                "processing_class",
-                "compute_metrics",
-                "callbacks",
-                "optimizers",
-                "optimizer_cls_and_kwargs",
-                "preprocess_logits_for_metrics",
-                "peft_config",
-            ),
-            ("ref_model",),
-            False,
-        ),
-        (
-            "ORPO",
-            "MLXORPOTrainer",
-            "MLXORPOConfig",
-            (
-                "model",
-                "args",
-                "data_collator",
-                "train_dataset",
-                "eval_dataset",
-                "processing_class",
-                "model_init",
-                "callbacks",
-                "optimizers",
-                "preprocess_logits_for_metrics",
-                "peft_config",
-                "compute_metrics",
-            ),
-            (),
-            False,
-        ),
-        (
-            # TRL cuts KTO batches in dataset order: each row's KL pair is its neighbor in the batch.
-            "KTO",
-            "MLXKTOTrainer",
-            "MLXKTOConfig",
-            (
-                "model",
-                "ref_model",
-                "args",
-                "train_dataset",
-                "eval_dataset",
-                "processing_class",
-                "data_collator",
-                "model_init",
-                "callbacks",
-                "optimizers",
-                "preprocess_logits_for_metrics",
-                "peft_config",
-                "compute_metrics",
-                "model_adapter_name",
-                "ref_adapter_name",
-            ),
-            ("ref_model", "model_adapter_name", "ref_adapter_name"),
-            True,
-        ),
-        (
-            "GRPO",
-            "MLXGRPOTrainer",
-            "MLXGRPOConfig",
-            (
-                "model",
-                "reward_funcs",
-                "args",
-                "train_dataset",
-                "eval_dataset",
-                "processing_class",
-                "reward_processing_classes",
-                "callbacks",
-                "optimizers",
-                "peft_config",
-            ),
-            ("reward_funcs", "reward_processing_classes"),
-            True,
-        ),
-        (
-            "CPO",
-            "MLXCPOTrainer",
-            "MLXCPOConfig",
-            (
-                "model",
-                "args",
-                "data_collator",
-                "train_dataset",
-                "eval_dataset",
-                "processing_class",
-                "model_init",
-                "callbacks",
-                "optimizers",
-                "preprocess_logits_for_metrics",
-                "peft_config",
-                "compute_metrics",
-            ),
-            (),
-            False,
-        ),
-    )
-
-    def _build_mlx_trl_policy_trainers():
-        aliases = {
-            key: value
-            for key, value in _MLX_TRAINING_ARGUMENT_ALIASES.items()
-            if key != "max_length"
-        }
-        built = {}
-        for stem, trainer, config, positional, extra, keep_order in _MLX_TRL_POLICY_TRAINERS:
-            zoo_trainer = getattr(_mlx_zoo_trainer, trainer, None)
-            zoo_config = getattr(_mlx_zoo_trainer, config, None)
-            if zoo_trainer is None or zoo_config is None:
-                continue
-            config_class = type(
-                f"{stem}Config",
-                (_MLXTRLConfig, zoo_config),
-                {"_unsloth_mlx_argument_aliases": aliases},
-            )
-            built[f"{stem}Config"] = config_class
-            # Pickle finds a class by module and name; importing unsloth also installs the trl shim.
-            globals()[f"{stem}Config"] = config_class
-            built[f"{stem}Trainer"] = type(
-                f"{stem}Trainer",
-                (_MLXTRLPolicyTrainer, zoo_trainer),
-                {
-                    "_unsloth_mlx_trainer_name": f"{stem}Trainer",
-                    "_unsloth_mlx_positional_kwargs": positional,
-                    "_unsloth_mlx_extra_kwargs": frozenset(extra),
-                    "_unsloth_mlx_config_class": config_class,
-                    "_unsloth_mlx_keep_dataset_order": keep_order,
-                },
-            )
-        return built
-
     from ._mlx_trl_all import (
         install_lazy_trl_all as _install_lazy_trl_all,
         raw_trl_all as _raw_trl_all,
@@ -1944,27 +1639,20 @@ if _IS_MLX:
                 _trl.__spec__ = _machinery.ModuleSpec("trl", loader = None, is_package = True)
                 _sys.modules["trl"] = _trl
 
-        _mapped = {"SFTConfig": _MLXSFTConfig, "SFTTrainer": UnslothTrainer}
-        _mapped.update(_build_mlx_trl_policy_trainers())
-        for _name, _shim in _mapped.items():
-            setattr(_trl, _name, _shim)
-        _mlx_trl_mapped_names.update(_mapped)
-        _supported = sorted(
-            _name[: -len("Trainer")] for _name in _mapped if _name.endswith("Trainer")
-        )
+        _trl.SFTTrainer = UnslothTrainer
+        _trl.SFTConfig = _MLXSFTConfig
         # Names come from trl's __all__, never a getattr probe: that triggers trl's lazy import and pulls torch.
         _trl_exports = set(_raw_trl_all(_trl))
         # Stub every non-SFT trl trainer so newer ones fail clearly too; take names from __all__ and never resolve them, since that pulls torch.
         _unsupported = set(_MLX_UNSUPPORTED_TRL_TRAINERS) | {
-            _n for _n in _trl_exports if _n.endswith("Trainer")
+            _n for _n in _trl_exports if _n.endswith("Trainer") and _n != "SFTTrainer"
         }
-        _unsupported -= set(_mapped)
         for _name in _unsupported:
             _current = vars(_trl).get(_name)
             if getattr(_current, "_unsloth_mlx_unsupported", False):
                 continue
             if _name in _trl_exports or _current is not None:
-                setattr(_trl, _name, _make_mlx_unsupported_trl_trainer(_name, _supported))
+                setattr(_trl, _name, _make_mlx_unsupported_trl_trainer(_name))
         # Filtered on first read of trl.__all__: resolving every name here imported all of trl (datasets, peft, ...).
         _install_lazy_trl_all(_trl, _safe_mlx_trl_star_exports)
         _trl.__UNSLOTH_MLX_COMPAT__ = True
