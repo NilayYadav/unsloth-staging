@@ -23,7 +23,10 @@ import { usePlatformStore } from "@/config/env";
 import { MLX_OPTIMIZER_OPTIONS, OPTIMIZER_OPTIONS } from "@/config/training";
 import { useIsAccountOwner } from "@/features/auth";
 import { setTrainingCompareHandoff } from "@/features/chat";
-import { tryFineTuneInDecisionApi } from "@/features/settings";
+import {
+  updateSystemOneSettings,
+  useSettingsDialogStore,
+} from "@/features/settings";
 import {
   getTrainingMethodLabel,
   type TrainingViewData,
@@ -190,7 +193,9 @@ export function ProgressSection({
     }
     setEnablingDecisionApi(true);
     try {
-      await tryFineTuneInDecisionApi(exportRunName);
+      const model = `laya-ft:${exportRunName}`;
+      await updateSystemOneSettings({ enabled: true, model });
+      useSettingsDialogStore.getState().openDecisionTry(model);
       toast.success(
         t("studio.progress.decisionApiEnabled", { name: exportRunName }),
       );
