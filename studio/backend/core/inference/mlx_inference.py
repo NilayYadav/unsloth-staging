@@ -187,8 +187,7 @@ def copy_cache_entries(entries):
         if not (_is_cache(entry) or isinstance(entry, (list, tuple))):
             raise TypeError(f"{type(entry).__name__} cannot be copied")
     copies = [_copy_value(entry, mx) for entry in entries]
-    # Not mx.eval: a wait between prefill chunks idles the GPU.
-    mx.async_eval(list(_arrays(copies, mx)))
+    mx.eval(list(_arrays(copies, mx)))
     return copies
 
 
@@ -474,7 +473,7 @@ def kv_skeleton(entries):
         else:
             return None
         skeleton.append(entry)
-    mx.async_eval(list(_arrays(skeleton, mx)))
+    mx.eval(list(_arrays(skeleton, mx)))
     return skeleton
 
 
@@ -517,7 +516,7 @@ def compact_sliding_windows(entries):
                 compacted.extend((entry.keys, entry.values))
     if compacted:
         import mlx.core as mx
-        mx.async_eval(compacted)
+        mx.eval(compacted)
 
 
 class VLMPromptSnapshotStore:
