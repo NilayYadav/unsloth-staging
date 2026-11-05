@@ -1,0 +1,31 @@
+name: repro-16814
+on:
+  push:
+    branches: [repro/issue-16814]
+jobs:
+  repro:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        mode: [cmd, npx]
+        exclude:
+          - os: ubuntu-latest
+            mode: cmd
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      UNSLOTH_STUDIO_ALLOW_STDIO_MCP: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: pip install -r studio/backend/requirements/studio.txt
+      - shell: bash
+        run: mkdir -p "$RUNNER_TEMP/fs"
+      - run: python repro/issue_16814.py ${{ matrix.mode }} "${{ runner.temp }}/fs"
