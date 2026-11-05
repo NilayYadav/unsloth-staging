@@ -481,9 +481,18 @@ def test_memory_estimate_prices_the_picked_folder(monkeypatch, tmp_path):
     assert mlx_memory._snapshot_config(picked)["model_type"] == "raon1_mini"
 
 
-@pytest.mark.parametrize("resident_folder, expected", [(None, "reuse"), ("6-bit", "load")])
-def test_a_root_request_never_reuses_a_resident_precision_folder(
-    monkeypatch, resident_folder, expected
+@pytest.mark.parametrize(
+    "resident_folder, requested, expected",
+    [
+        (None, None, "reuse"),
+        ("6-bit", None, "reload"),
+        ("6-bit", "6-bit", "reuse"),
+        ("6-bit", "8bit", "reload"),
+        (None, "6-bit", "reload"),
+    ],
+)
+def test_a_request_reuses_only_the_resident_precision_folder(
+    monkeypatch, resident_folder, requested, expected
 ):
     from hub.services.models import account_access
     from models.inference import LoadRequest
@@ -533,10 +542,12 @@ def test_a_root_request_never_reuses_a_resident_precision_folder(
     with pytest.raises(Exception):
         asyncio.run(
             inference._load_model_impl(
-                LoadRequest(model_path = _REPO), fastapi_request, current_subject = "user"
+                LoadRequest(model_path = _REPO, gguf_variant = requested),
+                fastapi_request,
+                current_subject = "user",
             )
         )
-    assert calls[:1] == [expected]
+    assert (calls[:1] == ["reuse"]) == (expected == "reuse")
 
 
 def test_a_caller_refused_the_cache_learns_nothing_from_it(monkeypatch, tmp_path):
