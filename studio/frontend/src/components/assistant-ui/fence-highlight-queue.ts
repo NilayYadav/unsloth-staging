@@ -23,8 +23,6 @@ export type FenceHighlightQueueOptions = {
   schedule: (callback: () => void, duringScroll: boolean) => () => void;
   blocked: (duringScroll: boolean) => boolean;
   commit: (callback: () => void) => void;
-  budgetMs?: number;
-  now?: () => number;
 };
 
 export function createFenceHighlightQueue(options: FenceHighlightQueueOptions): {
@@ -60,42 +58,23 @@ export function createFenceHighlightQueue(options: FenceHighlightQueueOptions): 
     }
   };
 
-  const budgetMs = options.budgetMs ?? 0;
-  const now = options.now ?? (() => performance.now());
-
   const run = (): void => {
     running = true;
     let entry: HighlightEntry | undefined;
-    const started = budgetMs > 0 ? now() : 0;
-    const taken = new Set<HighlightEntry>();
-    const verdicts = new Map<boolean, boolean>();
-    const blocked = (duringScroll: boolean): boolean => {
-      let verdict = verdicts.get(duringScroll);
-      if (verdict === undefined) {
-        verdict = options.blocked(duringScroll);
-        verdicts.set(duringScroll, verdict);
-      }
-      return verdict;
-    };
     try {
-      for (;;) {
-        entry = undefined;
-        for (const candidate of entries) {
-          if (!taken.has(candidate) && !blocked(candidate.duringScroll)) {
-            entry = candidate;
-            break;
-          }
+      for (const candidate of entries) {
+        if (!options.blocked(candidate.duringScroll)) {
+          entry = candidate;
+          break;
         }
-        if (!entry) return;
-        const current = entry;
-        taken.add(current);
-        let complete = false;
-        options.commit(() => {
-          if (entries.has(current)) complete = current.step();
-        });
-        if (entries.delete(current) && !complete) entries.add(current);
-        if (budgetMs <= 0 || flushing || now() - started >= budgetMs) return;
       }
+      if (!entry) return;
+      const current = entry;
+      let complete = false;
+      options.commit(() => {
+        if (entries.has(current)) complete = current.step();
+      });
+      if (entries.delete(current) && !complete) entries.add(current);
     } catch (error) {
       if (entry) entries.delete(entry);
       else entries.clear();

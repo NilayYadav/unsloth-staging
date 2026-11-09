@@ -1015,8 +1015,7 @@ const tokenizesOffThread = (body: string, streaming: boolean): boolean =>
 const slowMainThreadRegex =
   typeof window !== "undefined"
   && typeof window.requestIdleCallback !== "function";
-// JavaScriptCore interprets lookbehind patterns, so there even a short fence goes to the worker.
-const MAIN_THREAD_TAIL_CHARS = slowMainThreadRegex ? 0 : 512;
+const MAIN_THREAD_TAIL_CHARS = 512;
 
 const settlesOffThread = (
   body: string,
@@ -1024,7 +1023,7 @@ const settlesOffThread = (
   options: ReturnType<typeof fenceHighlightOptions>,
 ): boolean => {
   if (!tokenizesOffThread(body, streaming)) {
-    if (streaming) return false;
+    if (streaming || !slowMainThreadRegex) return false;
     const state = highlightWorkerState();
     if (state === "unavailable" || state === "stalled") return false;
   }
@@ -1166,7 +1165,7 @@ function useFenceTokens(
       }
       show(settled);
     };
-    if (defer() && !settlesOffThread(body, streaming, options)) {
+    if (defer()) {
       if (displayed.current !== null
         && (displayed.current.body !== body || displayed.current.language !== languageToken)) {
         show(null);
@@ -1303,13 +1302,12 @@ function FenceBlock({
 
   /* warm(true) tokenizes now (a sync cache hit for render); warm(false) only loads the grammar. */
   const warm = useCallback(
-    (tokens: boolean, inView = false) => {
+    (tokens: boolean) => {
       const body = trimTrailingNewlines(source);
       const options = fenceHighlightOptions(body, languageToken);
       const inline =
         tokens
-        && ((inView && !slowMainThreadRegex && !tokenizesOffThread(body, Boolean(isIncomplete)))
-          || !settlesOffThread(body, Boolean(isIncomplete), options)
+        && (!settlesOffThread(body, Boolean(isIncomplete), options)
           || code.cached(options) !== null);
       if (inline && !isIncomplete) code.highlightExact(options, () => {});
       else code.highlight(inline ? options : fenceHighlightOptions("", languageToken), () => {});
