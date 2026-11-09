@@ -1,0 +1,361 @@
+name: PR 17322 video e2e
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HEAD_SHA: 45b2302dbd5d164bbdfec80cacca2b5466d4e195
+  BASE_SHA: a691227711b2950e20f0b2c8983017ec62983f69
+  UNSLOTH_DISABLE_UPDATE_CHECK: '1'
+  STUDIO_PORT: '18900'
+  LOGGER_PORT: '8100'
+  PYTHONUNBUFFERED: '1'
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: '1'
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arm }}
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [head, base]
+    env:
+      UNSLOTH_ALLOW_HOST_OFFLOAD: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out the arm under test
+        run: |
+          cp -R .github/e2e "$RUNNER_TEMP/e2e"
+          if [ "${{ matrix.arm }}" = head ]; then SHA=$HEAD_SHA; else SHA=$BASE_SHA; fi
+          git cat-file -e "$SHA^{commit}" 2>/dev/null || git fetch --no-tags https://github.com/unslothai/unsloth.git "$SHA" || git fetch --no-tags https://github.com/unslothai/unsloth.git pull/17322/head
+          git checkout --detach "$SHA"
+          git log --oneline -1
+          echo "ARM_SHA=$SHA" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ffmpeg with Homebrew
+        timeout-minutes: 20
+        run: |
+          which ffmpeg || true
+          brew install ffmpeg
+          which ffmpeg ffprobe
+          ffmpeg -hide_banner -version | head -1
+
+      - name: Install Unsloth Studio (install.sh --local --no-torch)
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          bash install.sh --local --no-torch 2>&1 | tee logs/install.log | tail -40
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Playwright browsers
+        timeout-minutes: 15
+        run: |
+          python -m pip install 'playwright>=1.55,<1.58'
+          python -m playwright install chromium webkit
+          python - <<'PY'
+          import os, re, playwright
+          path = os.path.join(os.path.dirname(playwright.__file__), "driver", "package", "lib", "server", "pipeTransport.js")
+          src = open(path).read()
+          patched = re.sub(r"this\.onmessage\.call\(null, JSON\.parse\((message2?)\)\);",
+                           r"try { this.onmessage.call(null, JSON.parse(\1)); } catch (e) {}", src)
+          open(path, "w").write(patched)
+          PY
+
+      - name: Install oMLX 0.7.3 and check Metal/MLX
+        id: omlx_install
+        if: matrix.arm == 'head'
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          mkdir -p logs/omlx
+          python -m venv "$RUNNER_TEMP/omlx-venv"
+          OPY="$RUNNER_TEMP/omlx-venv/bin/python"
+          "$OPY" -m pip install -q --upgrade pip
+          "$OPY" -m pip install "omlx @ git+https://github.com/jundot/omlx.git@v0.7.3" opencv-python-headless 2>&1 | tail -5
+          "$OPY" -m pip show omlx | head -3
+          "$OPY" - <<'PY' 2>&1 | tee logs/omlx/mlx_check.txt
+          import platform, subprocess
+          import mlx.core as mx
+          print("machine", platform.machine(), platform.mac_ver()[0])
+          print("metal available", mx.metal.is_available())
+          print("default device", mx.default_device())
+          try:
+              print("device info", mx.metal.device_info())
+          except Exception as e:
+              print("device info error", e)
+          a = mx.random.normal((512, 512))
+          b = (a @ a.T).sum()
+          mx.eval(b)
+          print("matmul ok on", mx.default_device(), float(b))
+          PY
+          system_profiler SPDisplaysDataType 2>/dev/null | head -20 | tee -a logs/omlx/mlx_check.txt
+
+      - name: Download Qwen3.5-0.8B-4bit and start oMLX
+        id: omlx
+        if: matrix.arm == 'head' && steps.omlx_install.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          OPY="$RUNNER_TEMP/omlx-venv/bin/python"
+          mkdir -p "$RUNNER_TEMP/models"
+          "$OPY" -c "from huggingface_hub import snapshot_download; snapshot_download('mlx-community/Qwen3.5-0.8B-4bit', local_dir='$RUNNER_TEMP/models/Qwen3.5-0.8B-4bit')"
+          nohup "$RUNNER_TEMP/omlx-venv/bin/omlx" serve --model-dir "$RUNNER_TEMP/models" --host 127.0.0.1 --port 8000 --memory-guard off --log-level debug > logs/omlx/omlx.log 2>&1 &
+          echo "OMLX_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 180); do
+            if curl -fs http://127.0.0.1:8000/v1/models > logs/omlx/models.json; then break; fi
+            sleep 2
+          done
+          cat logs/omlx/models.json
+          MID=$(python -c "import json; print(json.load(open('logs/omlx/models.json'))['data'][0]['id'])")
+          echo "model id: $MID"
+          echo "OMLX_MODEL=$MID" >> "$GITHUB_ENV"
+          python - "$MID" "$RUNNER_TEMP/e2e/dog_720p_2s.mp4" <<'PY' > logs/omlx/direct_mp4_request.json
+          import base64, json, sys
+          clip = base64.b64encode(open(sys.argv[2], "rb").read()).decode()
+          print(json.dumps({"model": sys.argv[1], "max_tokens": 80, "messages": [{"role": "user", "content": [
+              {"type": "text", "text": "Describe this video. What word is shown and what colour is the background?"},
+              {"type": "video_url", "video_url": {"url": "data:video/mp4;base64," + clip}}]}]}))
+          PY
+          curl -s -m 600 http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' -d @logs/omlx/direct_mp4_request.json | tee logs/omlx/direct_mp4_reply.json
+          rm -f logs/omlx/direct_mp4_request.json
+          echo
+
+      - name: Start the request logger
+        run: |
+          mkdir -p e2e-out/server
+          UP=""
+          MID=e2e-video-logger
+          if [ -n "${OMLX_MODEL:-}" ]; then UP=http://127.0.0.1:8000/v1; MID=$OMLX_MODEL; fi
+          echo "E2E_MODEL=$MID" >> "$GITHUB_ENV"
+          if [ -n "$UP" ]; then echo "E2E_SERVER=omlx" >> "$GITHUB_ENV"; else echo "E2E_SERVER=logger" >> "$GITHUB_ENV"; fi
+          LOGGER_MODEL_ID=$MID nohup python "$RUNNER_TEMP/e2e/req_logger.py" "$LOGGER_PORT" e2e-out/server "$UP" > e2e-out/server/logger.log 2>&1 &
+          sleep 2
+          curl -fs "http://127.0.0.1:$LOGGER_PORT/v1/models"; echo
+
+      - name: Boot Studio
+        run: |
+          rm -rf ~/.unsloth/studio/auth
+          nohup unsloth studio -H 127.0.0.1 -p "$STUDIO_PORT" > logs/studio.log 2>&1 &
+          echo "STUDIO_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 240); do
+            if curl -fs "http://127.0.0.1:$STUDIO_PORT/api/health" | grep -q healthy; then echo healthy; break; fi
+            sleep 2
+          done
+          curl -fs "http://127.0.0.1:$STUDIO_PORT/api/health"; echo
+          PW="E2e-$(python -c 'import secrets; print(secrets.token_urlsafe(16))')"
+          echo "::add-mask::$PW"
+          echo "::add-mask::$(cat ~/.unsloth/studio/auth/.bootstrap_password)"
+          echo "E2E_STUDIO_PW=$PW" >> "$GITHUB_ENV"
+          echo "E2E_BOOT_PW_FILE=$HOME/.unsloth/studio/auth/.bootstrap_password" >> "$GITHUB_ENV"
+
+      - name: Drive the video attach flow
+        timeout-minutes: 50
+        run: |
+          set +e
+          BROWSERS="chromium webkit"
+          rc=0
+          for br in $BROWSERS; do
+            for attempt in 1 2; do
+              python "$RUNNER_TEMP/e2e/video_flow.py" "$br" "http://127.0.0.1:$STUDIO_PORT" e2e-out/ui \
+                "e2e-${E2E_SERVER}-${br}-${attempt}" "http://127.0.0.1:$LOGGER_PORT/v1" "$E2E_MODEL" \
+                "$RUNNER_TEMP/e2e/dog_720p_2s.mp4" "Describe this video. What word is shown and what colour is the background?" \
+                "macos-${{ matrix.arm }}-${br}" 2>&1 | tee "e2e-out/flow-${br}-${attempt}.log"
+              r=${PIPESTATUS[0]}
+              [ "$r" -eq 0 ] && break
+            done
+            [ "$r" -eq 0 ] || rc=1
+          done
+          exit $rc
+
+      - name: Direct oMLX call with the clip Studio sent
+        if: always() && env.E2E_SERVER == 'omlx'
+        continue-on-error: true
+        run: |
+          MKV=$(ls e2e-out/server/*.mkv 2>/dev/null | head -1)
+          [ -n "$MKV" ] || { echo "no mkv captured"; exit 0; }
+          python - "$OMLX_MODEL" "$MKV" <<'PY' > "$RUNNER_TEMP/mkv_req.json"
+          import base64, json, sys
+          clip = base64.b64encode(open(sys.argv[2], "rb").read()).decode()
+          print(json.dumps({"model": sys.argv[1], "max_tokens": 80, "messages": [{"role": "user", "content": [
+              {"type": "text", "text": "Describe this video. What word is shown and what colour is the background?"},
+              {"type": "video_url", "video_url": {"url": "data:video/x-matroska;base64," + clip}}]}]}))
+          PY
+          curl -s -m 600 http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' -d @"$RUNNER_TEMP/mkv_req.json" | tee logs/omlx/direct_mkv_reply.json
+
+      - name: Collect sanitized logs
+        if: always()
+        run: |
+          mkdir -p e2e-out/studio
+          for f in logs/studio.log logs/install.log; do
+            [ -f "$f" ] || continue
+            sed -E 's/sk-unsloth-[A-Za-z0-9_-]+/sk-unsloth-REDACTED/g; s/(password|token|secret)([^ ]*)[=:] *[^ ]+/\1\2=REDACTED/Ig' "$f" > "e2e-out/studio/$(basename "$f")"
+          done
+          grep -nE "Reworked video|shrink|video|Video|ffmpeg|Traceback|ERROR" logs/studio.log > e2e-out/studio/studio-video-lines.txt || true
+          cp -R logs/omlx e2e-out/omlx 2>/dev/null || true
+          git log --oneline -1 > e2e-out/arm.txt
+          (which ffmpeg ffprobe; ffmpeg -hide_banner -version | head -1) >> e2e-out/arm.txt 2>&1
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: e2e-macos-${{ matrix.arm }}
+          path: e2e-out
+          if-no-files-found: warn
+
+  windows:
+    name: Windows ${{ matrix.arm }}
+    runs-on: windows-latest
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [head, base]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out the arm under test
+        run: |
+          cp -R .github/e2e "$RUNNER_TEMP/e2e"
+          if [ "${{ matrix.arm }}" = head ]; then SHA=$HEAD_SHA; else SHA=$BASE_SHA; fi
+          git cat-file -e "$SHA^{commit}" 2>/dev/null || git fetch --no-tags https://github.com/unslothai/unsloth.git "$SHA" || git fetch --no-tags https://github.com/unslothai/unsloth.git pull/17322/head
+          git checkout --detach "$SHA"
+          git log --oneline -1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ffmpeg with Chocolatey
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          Write-Host "before: $((Get-Command ffmpeg -ErrorAction SilentlyContinue).Source)"
+          choco install ffmpeg -y --no-progress | Select-Object -Last 5
+          Write-Host "after: $((Get-Command ffmpeg -ErrorAction SilentlyContinue).Source)"
+          ffmpeg -hide_banner -version | Select-Object -First 1
+
+      - name: npm 11
+        shell: pwsh
+        run: npm install -g 'npm@^11' 2>&1 | Out-Host
+
+      - name: Install Unsloth Studio (install.ps1 --local --no-torch)
+        timeout-minutes: 50
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Force -Path logs | Out-Null
+          $child = '$ErrorActionPreference = ''Stop''; $ProgressPreference = ''SilentlyContinue''; & ./install.ps1 --local --no-torch; exit $LASTEXITCODE'
+          pwsh -NoProfile -ExecutionPolicy Bypass -Command $child 2>&1 | Tee-Object -FilePath logs/install.log | Select-Object -Last 40
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 exited with code $LASTEXITCODE" }
+
+      - name: Add Unsloth shim to PATH
+        run: |
+          cygpath -w ~/.unsloth/studio/bin >> "$GITHUB_PATH"
+          ls ~/.unsloth/studio/bin
+
+      - name: Install Playwright browsers
+        timeout-minutes: 15
+        run: |
+          python -m pip install 'playwright>=1.55,<1.58'
+          python -m playwright install chromium firefox
+
+      - name: Start the request logger
+        run: |
+          mkdir -p e2e-out/server
+          echo "E2E_MODEL=e2e-video-logger" >> "$GITHUB_ENV"
+          nohup python "$RUNNER_TEMP/e2e/req_logger.py" "$LOGGER_PORT" e2e-out/server "" > e2e-out/server/logger.log 2>&1 &
+          sleep 3
+          curl -fs "http://127.0.0.1:$LOGGER_PORT/v1/models"; echo
+
+      - name: Boot Studio
+        run: |
+          rm -rf ~/.unsloth/studio/auth
+          echo "PATH ffmpeg: $(which ffmpeg)"
+          nohup unsloth studio -H 127.0.0.1 -p "$STUDIO_PORT" > logs/studio.log 2>&1 &
+          for i in $(seq 1 240); do
+            if curl -fs "http://127.0.0.1:$STUDIO_PORT/api/health" | grep -q healthy; then echo healthy; break; fi
+            sleep 2
+          done
+          curl -fs "http://127.0.0.1:$STUDIO_PORT/api/health"; echo
+          PW="E2e-$(python -c 'import secrets; print(secrets.token_urlsafe(16))')"
+          echo "::add-mask::$PW"
+          echo "::add-mask::$(cat ~/.unsloth/studio/auth/.bootstrap_password)"
+          echo "E2E_STUDIO_PW=$PW" >> "$GITHUB_ENV"
+          echo "E2E_BOOT_PW_FILE=$(cygpath -w ~/.unsloth/studio/auth/.bootstrap_password)" >> "$GITHUB_ENV"
+
+      - name: Drive the video attach flow
+        timeout-minutes: 45
+        run: |
+          set +e
+          if [ "${{ matrix.arm }}" = head ]; then BROWSERS="chromium firefox msedge"; else BROWSERS="chromium"; fi
+          rc=0
+          for br in $BROWSERS; do
+            for attempt in 1 2; do
+              python "$RUNNER_TEMP/e2e/video_flow.py" "$br" "http://127.0.0.1:$STUDIO_PORT" e2e-out/ui \
+                "e2e-logger-${br}-${attempt}" "http://127.0.0.1:$LOGGER_PORT/v1" "$E2E_MODEL" \
+                "$(cygpath -w "$RUNNER_TEMP/e2e/dog_720p_2s.mp4")" "Describe this video. What word is shown and what colour is the background?" \
+                "windows-${{ matrix.arm }}-${br}" 2>&1 | tee "e2e-out/flow-${br}-${attempt}.log"
+              r=${PIPESTATUS[0]}
+              [ "$r" -eq 0 ] && break
+            done
+            [ "$r" -eq 0 ] || rc=1
+          done
+          exit $rc
+
+      - name: Collect sanitized logs
+        if: always()
+        run: |
+          mkdir -p e2e-out/studio
+          for f in logs/studio.log logs/install.log; do
+            [ -f "$f" ] || continue
+            sed -E 's/sk-unsloth-[A-Za-z0-9_-]+/sk-unsloth-REDACTED/g; s/(password|token|secret)([^ ]*)[=:] *[^ ]+/\1\2=REDACTED/Ig' "$f" > "e2e-out/studio/$(basename "$f")"
+          done
+          grep -nE "Reworked video|shrink|video|Video|ffmpeg|Traceback|ERROR" logs/studio.log > e2e-out/studio/studio-video-lines.txt || true
+          git log --oneline -1 > e2e-out/arm.txt
+          (which ffmpeg ffprobe; ffmpeg -hide_banner -version | head -1) >> e2e-out/arm.txt 2>&1
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: e2e-windows-${{ matrix.arm }}
+          path: e2e-out
+          if-no-files-found: warn
