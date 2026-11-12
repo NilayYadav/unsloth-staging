@@ -1,0 +1,80 @@
+name: Mac cluster test
+
+on:
+  push:
+    branches: [ci/mac-cluster-14274]
+  workflow_dispatch:
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hardware
+        run: |
+          sysctl -n machdep.cpu.brand_string hw.memsize hw.ncpu
+          sw_vers
+          system_profiler SPDisplaysDataType | head -25
+          ifconfig | grep 'inet '
+
+      - name: Install Studio from this branch
+        run: |
+          bash install.sh --local --no-torch 2>&1 | tail -60
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: llama.cpp bundle
+        run: |
+          B=$(dirname "$(find "$HOME/.unsloth/llama.cpp" -name llama-server -type f -perm -u+x | head -1)")
+          echo "BIN=$B" >> "$GITHUB_ENV"
+          ls "$B" | grep -iE 'rpc|server' || true
+          "$B/llama-server" --version 2>&1 | head -3
+          "$B/llama-server" --list-devices 2>&1 | tail -8 || true
+          "$B/ggml-rpc-server" --help 2>&1 | grep -iE 'tls|device' || echo "no ggml-rpc-server or no tls flags"
+
+      - name: Models
+        run: |
+          mkdir -p "$RUNNER_TEMP/models"
+          cd "$RUNNER_TEMP/models"
+          curl -fsSL -o qwen3-0.6b.gguf https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf
+          curl -fsSL -o stories15M.gguf https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf
+          ls -la
+
+      - name: Cluster scenarios
+        env:
+          MODEL: ${{ runner.temp }}/models/qwen3-0.6b.gguf
+        run: |
+          IP=$(ipconfig getifaddr en0 || ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')
+          echo "address: $IP"
+          python3 .github/mac-cluster/run.py "$IP"
+
+      - name: Cluster e2e tests with real macOS binaries
+        if: always()
+        continue-on-error: true
+        run: |
+          PY="$HOME/.unsloth/studio/unsloth_studio/bin/python"
+          uv pip install --python "$PY" -q pytest pytest-asyncio pytest-timeout
+          export UNSLOTH_TEST_LLAMA_BIN_DIR="$BIN" UNSLOTH_TEST_TINY_GGUF="$RUNNER_TEMP/models/stories15M.gguf"
+          export UNSLOTH_TEST_RPC_BIN="$BIN" UNSLOTH_TEST_GGUF="$RUNNER_TEMP/models/stories15M.gguf"
+          "$PY" -m pytest tests/studio/test_cluster_link_e2e.py tests/studio/test_cluster_link_relay.py \
+            tests/studio/test_cluster_link_pairing.py tests/studio/test_cluster_link_discovery.py \
+            tests/studio/test_cluster_link_peer_owner.py -q -rs --timeout=600 -p no:cacheprovider
+          cd studio/backend
+          "$PY" -m pytest tests/test_cluster_serving_e2e.py tests/test_cluster_link_serving.py tests/test_cluster_ux.py \
+            -q -rs --timeout=600 -p no:cacheprovider
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-cluster-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/cluster
+            /tmp/studio-*.log
+            ~/.unsloth/studio/logs
+          if-no-files-found: ignore
