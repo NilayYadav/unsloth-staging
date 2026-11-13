@@ -924,8 +924,9 @@ class _MarkdownRenderer(HTMLParser):
         self._link_heading_parts: list[str] = []
         self._emit_as_heading: bool = False
         self._replaying: bool = False
-        # Credited only at </a>: an <a> left open adopts body prose, which is not furniture.
+        # Credited only at </a> or a nested <a>: an <a> left open adopts body prose, which is not furniture.
         self._link_header_chars: int = 0
+        self._link_open_state: tuple = ()
 
         self._list_stack: list[str] = []  # "ul" or "ol"
         self._ol_counter: list[int] = []
@@ -1298,6 +1299,19 @@ class _MarkdownRenderer(HTMLParser):
         self._is_first_row = False
         self._current_row = []
         self._row_has_th = False
+
+    def _link_output_state(self) -> tuple:
+        frame = self._header_stack[-1] if self._header_stack else None
+        cell = self._cell_seq if self._in_cell else -1
+        return (
+            frame,
+            len(self._heading_marks),
+            len(self._bq_stack),
+            cell,
+            len(self._table_stack),
+            len(self._sup_starts),
+            self._inline_code_depth,
+        )
 
     # Link text helper: normalize whitespace so block content in <a> stays single-line.
     def _finish_link(self) -> None:
@@ -1765,6 +1779,18 @@ class _MarkdownRenderer(HTMLParser):
 
         if tag == "form":
             self._form_pointer = True
+        # a nested <a> implicitly closes the open one, even when hidden, when its text still routes where
+        # the link opened; <pre> text skips the link buffer
+        if (
+            tag == "a"
+            and self._in_link
+            and not self._in_pre
+            and not self._link_had_heading
+            and self._link_open_state == self._link_output_state()
+        ):
+            if self._header_stack:
+                self._header_stack[-1].link_chars += self._link_header_chars
+            self._finish_link()
         if not self._enter_tag(tag, attr_dict, hidden, aria_heading):
             return
 
@@ -1779,6 +1805,7 @@ class _MarkdownRenderer(HTMLParser):
             self._in_link = True
             self._link_seq += 1
             self._link_header_chars = 0
+            self._link_open_state = self._link_output_state()
 
         elif tag in _INLINE_EMPHASIS:
             self._emit(_INLINE_EMPHASIS[tag])
