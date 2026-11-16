@@ -1,0 +1,70 @@
+name: issue-18034 xprotect repro
+on:
+  push:
+    branches: [repro-18034-xprotect]
+jobs:
+  update:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      UNSLOTH_SKIP_AUTOSTART: "1"
+    steps:
+      - name: host info
+        run: |
+          uname -a
+          if [ "$(uname)" = Darwin ]; then
+            sw_vers
+            xprotect version 2>&1 || true
+            sudo xprotect update 2>&1 || true
+            xprotect version 2>&1 || true
+            for c in $(which -a cmake 2>/dev/null); do sudo mv "$c" "$c.hidden" || true; done
+          fi
+          command -v cmake || echo "cmake hidden"
+          date -u +"%Y-%m-%d %H:%M:%S" > "$RUNNER_TEMP/t0"
+      - name: fresh install (latest)
+        run: |
+          set -o pipefail
+          curl -fsSL https://unsloth.ai/install.sh | sh 2>&1 | tee "$RUNNER_TEMP/fresh.log"
+          echo "fresh exit=$?"
+      - name: downgrade to 2026.11.4 (+ torch 2.10.0 on mac)
+        run: |
+          V="$HOME/.unsloth/studio/unsloth_studio/bin/python"
+          UV=$(command -v uv || echo "$HOME/.local/bin/uv")
+          "$V" -c "import importlib.metadata as m;print(m.version('unsloth'),m.version('unsloth_zoo'),m.version('torch'))"
+          extra=""; [ "$(uname)" = Darwin ] && extra="torch==2.10.0"
+          "$UV" pip install --python "$V" --no-deps "unsloth==2026.11.4" "unsloth_zoo==2026.11.4" $extra
+          "$V" -c "import importlib.metadata as m;print(m.version('unsloth'),m.version('unsloth_zoo'),m.version('torch'))"
+          date -u +"%Y-%m-%d %H:%M:%S" > "$RUNNER_TEMP/t1"
+      - name: update via official one-liner (reporter's step)
+        run: |
+          set -o pipefail
+          curl -fsSL https://unsloth.ai/install.sh | sh 2>&1 | tee "$RUNNER_TEMP/update.log"
+          rc=$?; echo "update exit=$rc"; exit $rc
+      - name: verify completion
+        if: always()
+        run: |
+          V="$HOME/.unsloth/studio/unsloth_studio/bin/python"
+          "$V" -c "import importlib.metadata as m;print(m.version('unsloth'),m.version('unsloth_zoo'),m.version('torch'))" || true
+          ls -la "$HOME/.unsloth/studio/unsloth_studio" | grep -i manifest || true
+          ls "$HOME/.unsloth/llama.cpp/build/bin" 2>/dev/null | head || true
+          echo "--- update log tail"; tail -40 "$RUNNER_TEMP/update.log" || true
+      - name: xprotect / syspolicyd events
+        if: always() && runner.os == 'macOS'
+        run: |
+          t0=$(cat "$RUNNER_TEMP/t0")
+          sudo log show --start "$t0" --style syslog --info --debug \
+            --predicate 'process == "xprotectd" OR process == "XProtect" OR process == "XprotectService" OR (process == "syspolicyd" AND (eventMessage CONTAINS[c] "malware" OR eventMessage CONTAINS[c] "xprotect" OR eventMessage CONTAINS[c] "blocked"))' \
+            > "$RUNNER_TEMP/xprotect.log" 2>&1 || true
+          wc -l "$RUNNER_TEMP/xprotect.log"
+          echo "--- deny/malware/kill lines"
+          grep -iE "deny|malware|blocked|killing|ScriptedMalware|prompt" "$RUNNER_TEMP/xprotect.log" | tail -80 || echo "none"
+          echo "--- last 60 lines"; tail -60 "$RUNNER_TEMP/xprotect.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ matrix.os }}
+          path: ${{ runner.temp }}/*.log
