@@ -1,0 +1,14 @@
+name: PR 18694 mac watchdog repro
+on: push
+jobs:
+  repro:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q psutil torch
+      - run: curl -sSfL https://raw.githubusercontent.com/NilayYadav/unsloth/f2af81db959e0c37534a5128dcf76cd6088c3b26/studio/backend/core/inference/tools.py -o /tmp/tools.py
+      - run: python -c "import torch, platform; print(torch.__version__, platform.machine())"
+      - run: python repro/repro.py /tmp/tools.py 4 8 16 24
