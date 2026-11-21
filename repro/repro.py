@@ -28,15 +28,18 @@ if __name__ == '__main__':
     pool = mp.Pool(int(sys.argv[1]))
     pool.map(work, range(int(sys.argv[1])), chunksize=1)
     print('READY', flush=True)
-    time.sleep(120)
+    time.sleep(30)
 """
+
+TOOL_PATH = os.path.abspath("tool_call.py")
+open(TOOL_PATH, "w").write(TOOL)
 
 def tree(pid):
     r = psutil.Process(pid)
     return [r, *r.children(recursive=True)]
 
 for n in [int(x) for x in sys.argv[2:]]:
-    proc = subprocess.Popen([sys.executable, "-c", TOOL, str(n)], stdout=subprocess.PIPE, text=True, start_new_session=True)
+    proc = subprocess.Popen([sys.executable, TOOL_PATH, str(n)], stdout=subprocess.PIPE, text=True, start_new_session=True)
     assert proc.stdout.readline().strip() == "READY"
     time.sleep(2)
     procs = tree(proc.pid)
