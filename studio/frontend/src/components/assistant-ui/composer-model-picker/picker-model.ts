@@ -577,17 +577,13 @@ export function hubSizeIds<
 }
 
 /** Discover lists plain safetensors on a Mac, and under the Safetensors filter on any host that runs
- * them; a chat-only host runs GGUF, plus checkpoints where it serves MLX. On a Mac `chatOnly` is a guess
- * until measured, so only `chatOnlyKnown` narrows it. */
+ * them; a chat-only host runs GGUF only. */
 export function discoverListsCheckpoints(
   isMac: boolean,
   formatFilter: string,
   chatOnly: boolean,
   isMlx: boolean,
-  servesMlx: boolean,
-  chatOnlyKnown: boolean,
 ): boolean {
-  if (isMac && chatOnlyKnown) return servesMlx;
   return isMac || (formatFilter === "safetensors" && !chatOnly && !isMlx);
 }
 
