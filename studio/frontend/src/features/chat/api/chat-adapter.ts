@@ -3755,6 +3755,8 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
         platform.deviceType,
         platform.chatOnlyReason,
         platform.mlxInference,
+        // Background loads never send an engine, so they always load with Default.
+        "auto",
       ),
       pinnedMaxSeqLength: config.maxSeqLength,
       defaultMaxSeqLength: candidate.maxSeqLength,
@@ -3863,6 +3865,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
       platform.deviceType,
       platform.chatOnlyReason,
       platform.mlxInference,
+      "auto",
     );
     // MLX falls back to the standing preference: the live store may hold another model's settings.
     const standingSpec = candidateIsMlx
@@ -3937,6 +3940,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
         platform.deviceType,
         platform.chatOnlyReason,
         platform.mlxInference,
+        "auto",
       ),
       // What the load asked for, so a pin carried in either field is kept.
       requestedContextLength: fitMaxSeqLength,

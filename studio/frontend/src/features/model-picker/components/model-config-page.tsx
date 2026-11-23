@@ -233,6 +233,7 @@ import {
   isDefaultConfig,
   isReasoningBudgetMessageValid,
   contextPinPatch,
+  engineSelection,
   isServedByMlx,
   NPU_POWER_MODES,
   type NpuPowerMode,
@@ -3012,6 +3013,7 @@ export function ModelConfigPage({
     platformDeviceType,
     platformChatOnlyReason,
     platformMlxInference,
+    configState.engine,
   );
   const prefillOptionPath =
     servedByMlx &&
@@ -3615,6 +3617,7 @@ export function ModelConfigPage({
       isGguf: Boolean(target.isGguf),
       isAppleUnifiedMemory,
       classifiedIsDiffusion,
+      managedEngine: (configState.engine ?? "auto") !== "auto",
     })
       ? {
           modelPath: target.id,
@@ -3663,6 +3666,7 @@ export function ModelConfigPage({
   // The header probe gates the request; hold the row's place while it runs.
   const estimateAwaitingProbe =
     memoryEstimateRequest == null &&
+    (configState.engine ?? "auto") === "auto" &&
     contextFetchKey != null &&
     stagedDims == null &&
     !isDiffusion &&
@@ -4502,8 +4506,8 @@ export function ModelConfigPage({
         hasSavedSettings={savedRemember}
       />
       <div className="space-y-5">
-        {!target.isGguf && !targetIsMlx && !targetIsNpu && !classifiedIsDiffusion && !target.meta.isLora && !target.meta.audioType && (
-          <InferenceEnginePicker parallelism={config.engineParallelism ?? "tensor"} onParallelismChange={engineParallelism => update({ engineParallelism })} precision={config.enginePrecision ?? "auto"} onPrecisionChange={enginePrecision => update({ enginePrecision })} kvCacheDtype={config.engineKvCacheDtype ?? "auto"} onKvCacheDtypeChange={engineKvCacheDtype => update({ engineKvCacheDtype })} gpuMemoryUtilization={config.engineGpuMemoryUtilization ?? null} onGpuMemoryUtilizationChange={engineGpuMemoryUtilization => update({ engineGpuMemoryUtilization })} seed={config.engineSeed ?? null} onSeedChange={engineSeed => update({ engineSeed })} value={config.engine ?? "auto"} onChange={engine => update({ engine })} onReadyChange={setEngineReady} onUse={handleRun} gpuIds={config.selectedGpuIds} onGpuChange={ids => update({ selectedGpuIds: ids, selectedGpuIndexKind: "physical" })} />
+        {!target.isGguf && !targetIsNpu && !classifiedIsDiffusion && !target.meta.isLora && !target.meta.audioType && (
+          <InferenceEnginePicker parallelism={config.engineParallelism ?? "tensor"} onParallelismChange={engineParallelism => update({ engineParallelism })} precision={config.enginePrecision ?? "auto"} onPrecisionChange={enginePrecision => update({ enginePrecision })} kvCacheDtype={config.engineKvCacheDtype ?? "auto"} onKvCacheDtypeChange={engineKvCacheDtype => update({ engineKvCacheDtype })} gpuMemoryUtilization={config.engineGpuMemoryUtilization ?? null} onGpuMemoryUtilizationChange={engineGpuMemoryUtilization => update({ engineGpuMemoryUtilization })} seed={config.engineSeed ?? null} onSeedChange={engineSeed => update({ engineSeed })} value={config.engine ?? "auto"} onChange={engine => update(engineSelection(engine))} onReadyChange={setEngineReady} onUse={handleRun} gpuIds={config.selectedGpuIds} onGpuChange={ids => update({ selectedGpuIds: ids, selectedGpuIndexKind: "physical" })} />
         )}
         {/* LoRA adapters keep the precision they were trained in, so they get no switch. */}
         {!target.isGguf && !targetIsMlx && !targetIsNpu && !classifiedIsDiffusion && !target.meta.isLora && !target.meta.audioType && (config.engine ?? "auto") === "auto" && (
