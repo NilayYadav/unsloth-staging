@@ -16339,7 +16339,12 @@ def _mlx_chat_need(
     slots: int = 1,
 ) -> Optional[tuple[int, dict]]:
     """``(need MiB, growth)`` of an MLX chat load serving ``slots`` rows, or None; rows prefill as one batch."""
-    if getattr(config, "is_gguf", False) or not _unified_metal_host():
+    # vLLM on Metal is not an MLX load: like any managed engine it has no estimate, so a fit evicts first.
+    if (
+        getattr(config, "is_gguf", False)
+        or getattr(request, "engine", "auto") != "auto"
+        or not _unified_metal_host()
+    ):
         return None
     try:
         _, estimate = _mlx_load_estimate(request, config, model_identifier)
@@ -18113,6 +18118,9 @@ def _managed_engine_offer_for(config, hf_token) -> Optional[dict]:
 
         def supported(name, method):
             if support_reason(name) is not None:
+                return False
+            if gpu_platform() == "metal":
+                # Default (MLX) already loads AWQ; vllm-metal 0.33.0 has no GPTQ, compressed-tensors or auto-round loader.
                 return False
             if gpu_platform() == "rocm":
                 if method in ("auto-round", "fbgemm_fp8"):

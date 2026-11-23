@@ -41,6 +41,7 @@ from .engine_install import (
 from .engine_adapters import (
     ADAPTERS,
     gpu_memory_fraction,
+    metal_memory_rows,
     memory_reserve_mib,
     RESERVE_SHARE,
     launch_arguments,
@@ -107,8 +108,16 @@ def validate_load(engine: str, request) -> list[int]:
     gpu_ids = list(request.gpu_ids or [])
     if len(set(gpu_ids)) != len(gpu_ids) or any(gpu_id < 0 for gpu_id in gpu_ids):
         raise ValueError("Select distinct, non-negative GPU indices.")
-    # The engine's CUDA_VISIBLE_DEVICES replaces Studio's, so an omitted selection is the first GPU Studio sees.
-    gpu_ids = resolve_requested_gpu_ids(gpu_ids) if gpu_ids else resolve_requested_gpu_ids(None)[:1]
+    if profile(engine)["platform"] == "metal":
+        # The engine env brings its own MLX, so the one Apple GPU is there even when Studio's MLX is not.
+        if gpu_ids not in ([], [0]):
+            raise ValueError("Apple Silicon has one GPU. Select GPU 0.")
+        gpu_ids = [0]
+    elif gpu_ids:
+        gpu_ids = resolve_requested_gpu_ids(gpu_ids)
+    else:
+        # The engine's CUDA_VISIBLE_DEVICES replaces Studio's, so an omitted selection is the first GPU Studio sees.
+        gpu_ids = resolve_requested_gpu_ids(None)[:1]
     if not gpu_ids:
         raise ValueError("Unsloth has no GPU it can assign to this engine.")
     from . import wsl_host
@@ -249,6 +258,16 @@ def validate_model(
             f"{ENGINE_NAMES[engine]} on this GPU cannot load BitsAndBytes checkpoints. Choose an unquantized "
             "or AWQ checkpoint."
         )
+    if profile(engine)["platform"] == "metal" and quant.get("quant_method") in (
+        "gptq",
+        "compressed-tensors",
+        "auto-round",
+        "fbgemm_fp8",
+    ):
+        raise ValueError(
+            f"{ENGINE_NAMES[engine]} on Apple Silicon cannot load this checkpoint's quantization. Choose an "
+            "unquantized, MLX-quantized or AWQ checkpoint."
+        )
     if profile(engine)["platform"] == "rocm" and not rocm_loads_quantization(quant):
         raise ValueError(
             f"{ENGINE_NAMES[engine]} on AMD GPUs cannot load this checkpoint's quantization. Choose an "
@@ -289,6 +308,11 @@ def validate_model(
         or (engine == "vllm" and precision == "int4" and parallelism != "pipeline")
         else "auto",
     }
+    if kv_cache_dtype not in profile(engine)["kv_cache_dtypes"]:
+        label = {"fp8": "an FP8", "turboquant": "a TurboQuant"}.get(kv_cache_dtype, kv_cache_dtype)
+        raise ValueError(
+            f"{ENGINE_NAMES[engine]} on this GPU cannot use {label} KV cache. Choose Model default for KV cache."
+        )
     # Unset options stay out of the dict, so a default load keeps today's argv and cache key.
     if kv_cache_dtype != "auto":
         options["kv_cache_dtype"] = kv_cache_dtype
@@ -344,6 +368,11 @@ def validate_model(
         raise ValueError(
             "SGLang cannot use an FP8 KV cache with this model's attention. "
             "Choose Model default for KV cache, or use vLLM."
+        )
+    if kv_cache_dtype == "turboquant" and metadata.get("kv_lora_rank"):
+        # vllm-metal raises NotImplementedError for TurboQuant on MLA at engine start.
+        raise ValueError(
+            "TurboQuant cannot compress this model's attention cache (MLA). Choose Model default for KV cache."
         )
     size = len(gpu_ids or [0])
     if size > 1 and parallelism == "tensor":
@@ -803,7 +832,11 @@ class ManagedEngine:
                     child_env.pop("CUDA_PATH", None)
                     child_env.update(cuda_environment(info))
                     measure = (
-                        (lambda ids: _engine_memory_rows(info, child_env, ids)) if rocm else None
+                        (lambda ids: _engine_memory_rows(info, child_env, ids))
+                        if rocm
+                        else metal_memory_rows
+                        if info.get("platform") == "metal"
+                        else None
                     )
                     memory_fraction = gpu_memory_fraction(
                         gpu_ids or [0],
