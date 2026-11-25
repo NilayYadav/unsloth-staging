@@ -143,8 +143,21 @@ def wait(fn, timeout, every = 2.0):
     return None
 
 
+SKIP_JS = """const b = [...document.querySelectorAll('button')].find(x => x.innerText.trim() === 'Skip setup');
+  if (b) { b.click(); return true; } return false;"""
+
+
+def skip_onboarding(wd):
+    for _ in range(5):
+        if not wd.js(SKIP_JS):
+            return
+        time.sleep(2)
+
+
 def capture(wd, out, name, facts):
     time.sleep(8)
+    skip_onboarding(wd)
+    time.sleep(2)
     try:
         wd.shot(out / f"{name}.webdriver.png")
     except Exception as e:
@@ -161,6 +174,7 @@ def capture(wd, out, name, facts):
 
 
 def open_browser_and_load(wd):
+    skip_onboarding(wd)
     buttons = wd.find('button[aria-label="New tab"]')
     if not buttons:
         raise RuntimeError("no 'New tab' globe button")
@@ -217,12 +231,8 @@ def main():
             wd.shot(out / "stuck.webdriver.png")
             raise RuntimeError(f"app landed on {path}, not /chat")
         time.sleep(5)
-        for _ in range(3):
-            skip = [b for b in wd.find("button") if (wd.js("return arguments[0].innerText", b) if not isinstance(wd, CDP) else wd._eval(f"document.querySelectorAll('button')[{b['i']}].innerText")) .strip() == "Skip setup"]
-            if not skip:
-                break
-            wd.click(skip[0])
-            time.sleep(3)
+        time.sleep(20)
+        skip_onboarding(wd)
         native = wd.js_async("""const done = arguments[arguments.length - 1];
           window.__TAURI_INTERNALS__.invoke('browser_view_supported').then(v => done({ok: v}), e => done({err: String(e)}));""")
         facts["native_supported_probe"] = native
@@ -234,11 +244,15 @@ def main():
             api = "http://127.0.0.1:8888"
         facts["api"] = api
         now = int(time.time() * 1000)
-        created = wd.js_async("""const [api, body, done] = arguments;
-          fetch(api + '/api/chat/projects', {method: 'POST', headers: {'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + localStorage.getItem('unsloth_auth_token')}, body: JSON.stringify(body)})
-          .then(r => r.text().then(t => done({status: r.status, body: t.slice(0, 300)})), e => done({err: String(e)}));""",
-            api, {"id": PROJECT_ID, "name": PROJECT_NAME, "createdAt": now, "updatedAt": now})
+        token = wd.js("return localStorage.getItem('unsloth_auth_token')")
+        body = json.dumps({"id": PROJECT_ID, "name": PROJECT_NAME, "createdAt": now, "updatedAt": now}).encode()
+        try:
+            r = urllib.request.Request(api + "/api/chat/projects", data = body, method = "POST",
+                                       headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(r, timeout = 30) as resp:
+                created = {"status": resp.status, "body": resp.read()[:200].decode()}
+        except Exception as e:
+            created = {"err": str(e)[:300], "has_token": bool(token)}
         facts["project_create"] = created
         print("project create:", created)
 
