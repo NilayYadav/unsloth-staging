@@ -1,0 +1,55 @@
+name: repro 19590 offscreen start
+
+on:
+  push:
+    branches: [repro-19590-ci]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      REL_TAG: v0.1.925-beta
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and silent install
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force dl, out | Out-Null
+          gh release download $env:REL_TAG --repo unslothai/unsloth --pattern 'Unsloth-Desktop-Windows.exe' --dir dl
+          $p = Start-Process -FilePath (Resolve-Path dl/Unsloth-Desktop-Windows.exe) -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          $found = Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter '*Unsloth*.exe' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch '(?i)uninstall' } | Select-Object -First 1
+          Write-Host "installed: $($found.FullName)"
+          "APP_EXE=$($found.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Bundled backend install
+        shell: pwsh
+        run: |
+          $root = Split-Path -Parent $env:APP_EXE
+          $ps1 = Get-ChildItem -Path $root -Recurse -Filter 'install.ps1' | Select-Object -First 1
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ps1.FullName --tauri *>&1 |
+            Tee-Object -FilePath out/bundled-install.log | Select-Object -Last 30
+          if ($LASTEXITCODE -ne 0) { throw "bundled install exit $LASTEXITCODE" }
+
+      - name: Reproduce
+        shell: powershell
+        run: .\repro.ps1
+
+      - name: tauri.log
+        if: always()
+        shell: pwsh
+        run: |
+          $f = "$env:USERPROFILE\.unsloth\studio\tauri.log"
+          if (Test-Path $f) { Copy-Item $f out/; Select-String -Path $f -Pattern 'layout|window|disposition' | Select-Object -Last 40 }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repro-19590
+          path: out/
