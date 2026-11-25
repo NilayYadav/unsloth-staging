@@ -217,6 +217,12 @@ def main():
             wd.shot(out / "stuck.webdriver.png")
             raise RuntimeError(f"app landed on {path}, not /chat")
         time.sleep(5)
+        for _ in range(3):
+            skip = [b for b in wd.find("button") if (wd.js("return arguments[0].innerText", b) if not isinstance(wd, CDP) else wd._eval(f"document.querySelectorAll('button')[{b['i']}].innerText")) .strip() == "Skip setup"]
+            if not skip:
+                break
+            wd.click(skip[0])
+            time.sleep(3)
         native = wd.js_async("""const done = arguments[arguments.length - 1];
           window.__TAURI_INTERNALS__.invoke('browser_view_supported').then(v => done({ok: v}), e => done({err: String(e)}));""")
         facts["native_supported_probe"] = native
