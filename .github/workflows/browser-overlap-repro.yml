@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   linux:
+    if: false
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     steps:
@@ -61,20 +62,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: tauri-driver + msedgedriver
-        shell: pwsh
-        run: |
-          cargo install tauri-driver --locked
-          $keys = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-                  'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-          $ver = $null
-          foreach ($k in $keys) { if (Test-Path $k) { $ver = (Get-ItemProperty $k).pv; if ($ver) { break } } }
-          if (-not $ver) { $ver = (Get-Item 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe').VersionInfo.ProductVersion }
-          Write-Host "WebView2 version: $ver"
-          New-Item -ItemType Directory -Force -Path drv | Out-Null
-          Invoke-WebRequest "https://msedgedriver.microsoft.com/$ver/edgedriver_win64.zip" -OutFile drv/d.zip
-          Expand-Archive drv/d.zip -DestinationPath drv -Force
-          Get-ChildItem drv
+      - name: websocket client
+        run: python -m pip install websocket-client
       - name: Studio backend
         shell: pwsh
         run: |
@@ -95,7 +84,7 @@ jobs:
         shell: pwsh
         run: |
           python .github/scripts/browser_overlap_repro.py --bin studio/src-tauri/target/debug/unsloth-studio.exe `
-            --out out --native-driver "$PWD\drv\msedgedriver.exe"
+            --out out --cdp
       - uses: actions/upload-artifact@v4
         if: always()
         with:

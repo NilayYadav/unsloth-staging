@@ -52,6 +52,66 @@ class WD:
         Path(path).write_bytes(base64.b64decode(self.req("GET", self.s("/screenshot"))))
 
 
+class CDP:
+    def __init__(self, port):
+        import websocket
+
+        targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout = 10))
+        print("targets:", [(t.get("type"), t.get("url")) for t in targets])
+        page = next(t for t in targets if t.get("type") == "page" and "tauri.localhost" in t.get("url", ""))
+        self.ws = websocket.create_connection(page["webSocketDebuggerUrl"], timeout = 120)
+        self.n, self.sid = 0, "cdp"
+
+    def call(self, method, **params):
+        self.n += 1
+        self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
+        while True:
+            msg = json.loads(self.ws.recv())
+            if msg.get("id") == self.n:
+                if "error" in msg:
+                    raise RuntimeError(f"{method}: {msg['error']}")
+                return msg.get("result", {})
+
+    def _eval(self, expr):
+        r = self.call("Runtime.evaluate", expression = expr, returnByValue = True, awaitPromise = True)
+        if "exceptionDetails" in r:
+            raise RuntimeError(str(r["exceptionDetails"])[:400])
+        return r.get("result", {}).get("value")
+
+    def js(self, script, *args):
+        return self._eval(f"(function(){{{script}}}).apply(null, {json.dumps(list(args))})")
+
+    def js_async(self, script, *args):
+        return self._eval(
+            f"new Promise(done => (function(){{{script}}}).apply(null, [...{json.dumps(list(args))}, done]))")
+
+    def find(self, css):
+        n = self._eval(f"document.querySelectorAll({json.dumps(css)}).length") or 0
+        return [{"css": css, "i": i} for i in range(n)]
+
+    def click(self, el):
+        self._eval(f"document.querySelectorAll({json.dumps(el['css'])})[{el['i']}].click()")
+
+    def type(self, el, text):
+        self._eval(f"document.querySelectorAll({json.dumps(el['css'])})[{el['i']}].focus()")
+        enter = text.endswith("")
+        self.call("Input.insertText", text = text.rstrip(""))
+        if enter:
+            for kind in ("keyDown", "keyUp"):
+                self.call("Input.dispatchKeyEvent", type = kind, key = "Enter", code = "Enter",
+                          windowsVirtualKeyCode = 13, nativeVirtualKeyCode = 13,
+                          **({"text": "\r"} if kind == "keyDown" else {}))
+
+    def shot(self, path):
+        Path(path).write_bytes(base64.b64decode(self.call("Page.captureScreenshot", format = "png")["data"]))
+
+    def req(self, *a, **k):
+        return None
+
+    def s(self, p):
+        return p
+
+
 def screen_shot(path):
     try:
         if sys.platform == "win32":
@@ -120,24 +180,30 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", required = True)
     ap.add_argument("--out", required = True)
-    ap.add_argument("--native-driver")
+    ap.add_argument("--cdp", action = "store_true")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents = True, exist_ok = True)
 
-    port = 4444
-    cmd = ["tauri-driver", "--port", str(port)]
-    if a.native_driver:
-        cmd += ["--native-driver", a.native_driver]
-    log = (out / "tauri-driver.log").open("wb")
-    driver = subprocess.Popen(cmd, stdout = log, stderr = subprocess.STDOUT)
+    port = 4444 if not a.cdp else 9222
+    log = (out / "app.log").open("wb")
+    if a.cdp:
+        env = dict(os.environ, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=f"--remote-debugging-port={port}")
+        driver = subprocess.Popen([str(Path(a.bin).resolve())], env = env, stdout = log, stderr = subprocess.STDOUT)
+    else:
+        driver = subprocess.Popen(["tauri-driver", "--port", str(port)], stdout = log, stderr = subprocess.STDOUT)
     facts = {"platform": sys.platform}
     wd = WD(f"http://127.0.0.1:{port}")
     try:
-        if not wait(lambda: socket.create_connection(("127.0.0.1", port), 1).close() or True, 60, 1):
-            raise RuntimeError("tauri-driver did not start")
-        caps = {"capabilities": {"alwaysMatch": {"tauri:options": {"application": str(Path(a.bin).resolve())}}}}
-        wd.sid = wd.req("POST", "/session", caps, timeout = 300)["sessionId"]
+        if not wait(lambda: socket.create_connection(("127.0.0.1", port), 1).close() or True, 180, 2):
+            raise RuntimeError(f"nothing listening on {port}")
+        if a.cdp:
+            wd = wait(lambda: CDP(port), 120, 3)
+            if not wd:
+                raise RuntimeError("no main-window DevTools target")
+        else:
+            caps = {"capabilities": {"alwaysMatch": {"tauri:options": {"application": str(Path(a.bin).resolve())}}}}
+            wd.sid = wd.req("POST", "/session", caps, timeout = 300)["sessionId"]
 
         def ready():
             p = wd.js("return location.pathname")
