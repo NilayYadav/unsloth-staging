@@ -231,7 +231,8 @@ def main():
             .map(n => /^(https?:\/\/127\.0\.0\.1:[1-9]\d*)\//.exec(n)).find(Boolean);
             return m ? m[1] : null;""")
         if not api:
-            raise RuntimeError("could not find the Studio API origin")
+            api = "http://127.0.0.1:8888"
+        facts["api"] = api
         now = int(time.time() * 1000)
         created = wd.js_async("""const [api, body, done] = arguments;
           fetch(api + '/api/chat/projects', {method: 'POST', headers: {'Content-Type': 'application/json',
