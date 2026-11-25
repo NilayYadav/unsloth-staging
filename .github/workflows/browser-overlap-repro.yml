@@ -1,0 +1,103 @@
+name: Browser overlap repro (Linux / Windows Desktop)
+
+on:
+  push:
+    branches: [browser-overlap-repro]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Tauri deps + WebDriver
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev \
+            libssl-dev patchelf xvfb webkit2gtk-driver imagemagick
+          cargo install tauri-driver --locked
+      - name: Studio backend
+        run: ./install.sh --local --no-torch
+      - name: Build Desktop (debug)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ''
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          (cd studio/frontend && npm ci --no-fund --no-audit && npm run build)
+          npm install --save-dev --prefix studio @tauri-apps/cli@2.10.1 --no-fund --no-audit
+          npx --prefix studio tauri build --debug --no-bundle
+      - name: Repro
+        run: |
+          xvfb-run -a -s "-screen 0 1440x900x24" python .github/scripts/browser_overlap_repro.py \
+            --bin studio/src-tauri/target/debug/unsloth-studio --out out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: overlap-linux
+          path: out/
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: tauri-driver + msedgedriver
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --locked
+          $keys = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+                  'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $ver = $null
+          foreach ($k in $keys) { if (Test-Path $k) { $ver = (Get-ItemProperty $k).pv; if ($ver) { break } } }
+          if (-not $ver) { $ver = (Get-Item 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe').VersionInfo.ProductVersion }
+          Write-Host "WebView2 version: $ver"
+          New-Item -ItemType Directory -Force -Path drv | Out-Null
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$ver/edgedriver_win64.zip" -OutFile drv/d.zip
+          Expand-Archive drv/d.zip -DestinationPath drv -Force
+          Get-ChildItem drv
+      - name: Studio backend
+        shell: pwsh
+        run: |
+          $child = '$ErrorActionPreference = ''Stop''; $ProgressPreference = ''SilentlyContinue''; & ./install.ps1 --local --no-torch; exit $LASTEXITCODE'
+          pwsh -NoProfile -ExecutionPolicy Bypass -Command $child
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 exited with code $LASTEXITCODE" }
+      - name: Build Desktop (debug)
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ''
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          Push-Location studio/frontend; npm ci --no-fund --no-audit; npm run build; Pop-Location
+          npm install --save-dev --prefix studio @tauri-apps/cli@2.10.1 --no-fund --no-audit
+          npx --prefix studio tauri build --debug --no-bundle
+          if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
+      - name: Repro
+        shell: pwsh
+        run: |
+          python .github/scripts/browser_overlap_repro.py --bin studio/src-tauri/target/debug/unsloth-studio.exe `
+            --out out --native-driver "$PWD\drv\msedgedriver.exe"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: overlap-windows
+          path: out/
