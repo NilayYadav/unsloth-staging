@@ -78,10 +78,11 @@ jobs:
         run: |
           $m = 'studio/src-tauri/src/main.rs'
           $src = Get-Content $m -Raw
-          $hook = '    #[cfg(windows)]' + "`n" + '    if let Some(args) = gpu_rendering::windows_main_browser_args(gpu_setting) {'
+          $hook = 'if let Some(args) = gpu_rendering::windows_main_browser_args(gpu_setting) {'
           if (-not $src.Contains($hook)) { throw "main window hook not found" }
-          $inject = '    #[cfg(windows)]' + "`n" + '    if let Some(window) = context.config_mut().app.windows.get_mut(0) { window.additional_browser_args = Some("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9222".into()); }' + "`n"
-          Set-Content $m ($src.Replace($hook, $inject + $hook)) -NoNewline
+          $mine = 'if let Some(window) = context.config_mut().app.windows.get_mut(0) { window.additional_browser_args = Some("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9222".into()); }'
+          Set-Content $m ($src.Replace($hook, $mine + "`r`n    #[cfg(windows)]`r`n    " + $hook)) -NoNewline
+          Select-String -Path $m -Pattern 'remote-debugging-port' | Select-Object -First 1
           Push-Location studio/frontend; npm ci --no-fund --no-audit; npm run build; Pop-Location
           npm install --save-dev --prefix studio @tauri-apps/cli@2.10.1 --no-fund --no-audit
           npx --prefix studio tauri build --debug --no-bundle
