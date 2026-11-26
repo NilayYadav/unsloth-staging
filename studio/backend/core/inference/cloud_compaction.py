@@ -372,6 +372,28 @@ def tail_start(body: list[dict], count_message: Callable[[dict], int], tail_toke
     return start
 
 
+def _request_reference_index(messages: list[dict]) -> Optional[int]:
+    """The image-edit reference the client sends just before the newest user turn."""
+    users = [index for index, message in enumerate(messages) if message.get("role") == "user"]
+    if not users or users[-1] == 0:
+        return None
+    previous = messages[users[-1] - 1]
+    parts = previous.get("content")
+    if previous.get("role") == "assistant" and isinstance(parts, list):
+        if any(isinstance(p, dict) and p.get("type") == "image_generation_call" for p in parts):
+            return users[-1] - 1
+    return None
+
+
+def keep_request_reference(body: list[dict], cut: int) -> int:
+    return cut - 1 if cut > 0 and _request_reference_index(body) == cut - 1 else cut
+
+
+def request_reference_ids(messages: list[dict]) -> set[int]:
+    index = _request_reference_index(messages)
+    return set() if index is None else {id(messages[index])}
+
+
 def tail_token_budget(prompt_budget_tokens: Optional[int]) -> int:
     if not prompt_budget_tokens or prompt_budget_tokens <= 0:
         return TAIL_TOKENS
