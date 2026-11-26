@@ -4,7 +4,7 @@ name: Windows ARM64 CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'install.ps1'
       - 'scripts/uninstall.ps1'

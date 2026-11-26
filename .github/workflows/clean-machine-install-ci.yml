@@ -52,7 +52,7 @@ on:
       - 'studio/backend/utils/prebuilt/llama_backend.py'
       - 'studio/backend/vendor/truststore/**'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     # Keep in sync with the pull_request path filter.
     paths:
       - 'install.sh'

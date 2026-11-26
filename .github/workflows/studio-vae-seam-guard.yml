@@ -20,7 +20,7 @@ on:
       - 'studio/backend/tests/test_diffusion_tp2.py'
       - '.github/workflows/studio-vae-seam-guard.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/backend/core/inference/**'
       - 'studio/backend/requirements/diffusers-*.txt'

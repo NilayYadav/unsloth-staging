@@ -32,7 +32,7 @@ name: Lint CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

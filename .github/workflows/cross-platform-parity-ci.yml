@@ -118,7 +118,7 @@ on:
       - 'tests/_shared/**'
       - 'pyproject.toml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'install.sh'
       - 'install.ps1'

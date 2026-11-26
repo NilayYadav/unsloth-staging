@@ -19,7 +19,7 @@ on:
       - '.github/workflows/wheel-smoke.yml'
       - 'scripts/lockfile_supply_chain_audit.py'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'pyproject.toml'
       - 'MANIFEST.in'

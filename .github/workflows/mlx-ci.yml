@@ -56,7 +56,7 @@ on:
       - '.github/actions/pip-cache-restore/**'
       - '.github/actions/pip-cache-save/**'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'unsloth/__init__.py'
       - 'unsloth/_gpu_init.py'

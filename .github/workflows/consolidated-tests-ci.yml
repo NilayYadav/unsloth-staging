@@ -31,7 +31,7 @@ on:
       - '.github/actions/core-cpu-setup/**'
       # Both Core jobs `uses:` this action, so a change to it must run them.
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'unsloth/**'
       - 'unsloth_cli/**'

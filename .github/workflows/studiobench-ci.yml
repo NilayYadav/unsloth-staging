@@ -40,7 +40,7 @@ on:
       - '.github/scripts/wait-for-health.sh'
       - '.github/scripts/retry-with-apt-lock.sh'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'tests/studio/studiobench/**'
       - 'studio/nvidia_probe.py'

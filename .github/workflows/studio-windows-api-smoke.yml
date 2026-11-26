@@ -43,7 +43,7 @@ on:
       - '.github/scripts/wait-for-health.sh'
       - '.github/scripts/hf-download-with-retry.sh'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/backend/**'
       - 'studio/frontend/**'

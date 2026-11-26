@@ -30,7 +30,7 @@ on:
       # (tests/studio/test_short_job_absorption.py keeps them there).
       - '.github/workflows/security-audit.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
   schedule:
     - cron: '13 4 * * *'
   workflow_dispatch:

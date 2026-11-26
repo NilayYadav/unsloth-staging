@@ -27,7 +27,7 @@ on:
       # Read by the Rust test every_shared_case_agrees_with_the_desktop_filter.
       - 'studio/backend/tests/fixtures/access_log_records.json'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     # Same list as the PR filter, to spare the account-wide macOS slots.
     paths:
       - 'studio/frontend/**'

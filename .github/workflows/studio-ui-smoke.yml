@@ -45,7 +45,7 @@ on:
       - '.github/actions/uv-cache-restore/action.yml'
       - '.github/actions/uv-cache-save/action.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/backend/**'
       # Backend unit tests are not part of the running Studio this smoke drives.

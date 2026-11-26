@@ -42,7 +42,7 @@ on:
       - '.github/scripts/hf-download-with-retry.sh'
       - '.github/scripts/studio_smoke/multi_turn_chat.py'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/backend/**'
       # Backend unit tests are not part of the running Studio this smoke drives.

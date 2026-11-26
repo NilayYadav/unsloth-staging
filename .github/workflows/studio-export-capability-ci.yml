@@ -36,7 +36,7 @@ on:
       - 'studio/backend/utils/models/**'
       - 'studio/backend/utils/paths/**'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/backend/core/export/export.py'
       - 'studio/backend/routes/export.py'

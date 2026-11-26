@@ -34,7 +34,7 @@ on:
       - 'studio/node_prebuilt_pins.json'
       - '.github/workflows/windows-application-control-ci.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'install.ps1'
       - 'scripts/uninstall.ps1'

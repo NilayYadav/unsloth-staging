@@ -38,7 +38,7 @@ on:
       - 'studio/backend/vendor/truststore/**'
       - '.github/workflows/studio-windows-installer-smoke.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'install.ps1'
       - 'studio/setup.ps1'

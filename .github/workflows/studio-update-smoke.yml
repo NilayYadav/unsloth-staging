@@ -64,7 +64,7 @@ on:
       - '.github/actions/uv-cache-restore/action.yml'
       - '.github/actions/uv-cache-save/action.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     # Same list as pull_request, to spare the macOS slots.
     paths:
       - 'install.sh'

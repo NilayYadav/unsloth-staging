@@ -1,0 +1,164 @@
+name: mxc curl repro
+
+on:
+  push:
+    branches: [allow-curl-ci]
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: Terminal on ${{ matrix.os }} (${{ matrix.side }} ${{ matrix.attempt }} pin ${{ matrix.pin }} dacl ${{ matrix.dacl || '1' }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+        side: [main, branch]
+        attempt: [1, 2]
+        pin: [default]
+        include:
+          - os: windows-11-arm
+            side: branch
+            attempt: 1
+            pin: '1.0.1'
+            dacl: '0'
+          - os: windows-11-arm
+            side: branch
+            attempt: 1
+            pin: '1.0.1'
+            dacl: '1'
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      UNSLOTH_MXC_ALLOW_DACL_FALLBACK: ${{ matrix.dacl || '1' }}
+      UNSLOTH_MXC_PIN: ${{ matrix.pin != 'default' && matrix.pin || '' }}
+      EXPECT_DOWNLOADS: ${{ matrix.os == 'windows-11-arm' && matrix.side == 'branch' && matrix.pin == 'default' && '1' || '0' }}
+      SIDE: ${{ matrix.side }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - name: Use main's code
+        if: matrix.side == 'main'
+        shell: bash
+        run: git checkout HEAD~2 -- studio/backend/core/inference
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Install backend requirements
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r studio/backend/requirements/studio.txt pytest
+      - name: Install the pinned MXC runtime and prepare the host
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "windows-arm64" } else { "windows-x86_64" }
+          $dir = Join-Path $env:USERPROFILE ".unsloth\studio\mxc-runtime\$arch"
+          python studio/install_mxc_prebuilt.py --install-dir $dir
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python studio/install_mxc_prebuilt.py --prepare-host --install-dir $dir
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Probe the Terminal tool
+        shell: pwsh
+        run: python .github/repro/mxc_curl_repro.py
+
+
+  tests:
+    name: tests (${{ matrix.os }}, ${{ matrix.side }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        side: [main, branch]
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - name: Use main's code
+        if: matrix.side == 'main'
+        shell: bash
+        run: git checkout HEAD~2 -- studio/backend/core/inference
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install backend requirements
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r studio/backend/requirements/studio.txt pytest
+      - name: Run the Terminal, sandbox and MXC tests
+        shell: bash
+        working-directory: studio/backend
+        run: |
+          set +e
+          python -m pytest -q -p no:cacheprovider -rf tests/test_windows_cmd_terminal_profile.py tests/test_sandbox_contained_commands.py tests/test_permission_mode.py tests/test_sandbox_egress.py tests/test_mxc_cmd_command_line.py tests/test_mxc_policy_identity.py tests/test_mxc_windows_backend.py tests/test_mxc_launch_repeats.py tests/test_mxc_dacl_fallback.py tests/test_mxc_read_grants.py tests/test_mxc_isolation_settings.py
+          echo "PYTEST_EXIT=$? side=${{ matrix.side }}"
+
+  chat:
+    name: Studio chat on ${{ matrix.os }} (${{ matrix.side }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-11-arm, windows-latest]
+        side: [main, branch]
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      STUDIO_PORT: '18895'
+      BASE_URL: http://127.0.0.1:18895
+      EXPECT_DOWNLOADS: ${{ matrix.os == 'windows-11-arm' && matrix.side == 'branch' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      - name: Use main's code
+        if: matrix.side == 'main'
+        run: git checkout HEAD~2 -- studio/backend/core/inference
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: npm 11
+        shell: pwsh
+        run: npm install -g 'npm@^11' 2>&1 | Out-Host
+      - name: Install Unsloth (--local, --no-torch)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Force -Path logs | Out-Null
+          $child = '$ErrorActionPreference = ''Stop''; $ProgressPreference = ''SilentlyContinue''; & ./install.ps1 --local --no-torch; exit $LASTEXITCODE'
+          pwsh -NoProfile -ExecutionPolicy Bypass -Command $child 2>&1 | Tee-Object -FilePath logs/install.log | Select-String -Pattern 'MXC|error|fail|installed' | Select-Object -Last 60
+          if ($LASTEXITCODE -ne 0) { Get-Content logs/install.log -Tail 80; throw "install.ps1 exited with code $LASTEXITCODE" }
+      - name: Add Unsloth shim to PATH
+        run: cygpath -w ~/.unsloth/studio/bin >> "$GITHUB_PATH"
+      - name: Boot Unsloth and wait for health
+        run: |
+          bash .github/scripts/boot-studio-api-only.sh --port "$STUDIO_PORT"
+          bash .github/scripts/wait-for-health.sh --port "$STUDIO_PORT"
+      - name: Chat that asks for the Terminal tool
+        run: python .github/repro/studio_chat_e2e.py
+      - name: Server log tail
+        if: always()
+        run: tail -n 60 logs/studio.log || true

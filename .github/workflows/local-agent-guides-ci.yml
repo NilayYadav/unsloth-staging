@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
   # Cache saves are main-only, so a main push seeds the GGUF cache (same paths filter as PRs).
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       # Import closure of `unsloth run` plus the recipe files; only unsloth_cli/tests/** is excluded.
       - 'unsloth_cli/*'

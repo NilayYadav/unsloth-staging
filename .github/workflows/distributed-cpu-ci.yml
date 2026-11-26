@@ -39,7 +39,7 @@ on:
       - '.github/actions/merge-ref-age/**'
       - '.github/workflows/distributed-cpu-ci.yml'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'unsloth/**'
       # The multi-rank suites and the sibling test modules they import.

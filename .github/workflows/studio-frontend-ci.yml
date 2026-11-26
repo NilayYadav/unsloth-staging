@@ -82,7 +82,7 @@ on:
       - '.github/workflows/studio-frontend-ci.yml'
       - '.github/scripts/retry-with-apt-lock.sh'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci]
     paths:
       - 'studio/frontend/**'
       - 'scripts/check_frontend_dep_removal.py'
