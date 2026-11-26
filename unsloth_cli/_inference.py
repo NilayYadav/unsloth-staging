@@ -1133,7 +1133,6 @@ class HttpChatBackend:
     """
 
     def __init__(self, base_url: str, token: str) -> None:
-        self.image_generator: Optional[str] = None
         self._base = base_url
         self._token = token
         self.reply_hit_token_limit = False
@@ -1163,24 +1162,8 @@ class HttpChatBackend:
             },
             method = method,
         )
-        if self.image_generator and path == "/v1/chat/completions":
-            request.add_header("X-Unsloth-Events", "1")
         # No redirects: this carries a bearer token (see urlopen_no_redirect).
         return urlopen_no_redirect(request, timeout = timeout)
-
-    def _signed_gallery_url(self, image_id: str) -> Optional[str]:
-        from urllib.parse import quote
-
-        gallery_path = f"/api/inference/images/gallery/{quote(image_id, safe = '')}"
-        try:
-            with self._request("GET", f"{gallery_path}/signed-url", timeout = 10) as response:
-                payload = json.load(response)
-        except (OSError, ValueError):
-            return None
-        path = payload.get("url") if isinstance(payload, dict) else None
-        if isinstance(path, str) and path.startswith(f"{gallery_path}/file-signed?token="):
-            return self._base + path
-        return None
 
     def ensure_loaded(
         self,
@@ -1337,15 +1320,6 @@ class HttpChatBackend:
             "stream": True,
             "enable_thinking": enable_thinking,
         }
-        if self.image_generator:
-            body.update(
-                enable_tools = True,
-                enabled_tools = ["generate_image"],
-                image_generator = self.image_generator,
-                max_tool_calls_per_message = 1,
-                parallel_tool_calls = False,
-                permission_mode = "off",
-            )
         sampling = dict(
             temperature = temperature,
             top_p = top_p,
@@ -1381,24 +1355,6 @@ class HttpChatBackend:
                         parsed = json.loads(data)
                     except ValueError:
                         continue
-                    if (
-                        self.image_generator
-                        and parsed.get("type") == "tool_end"
-                        and parsed.get("tool_name") == "generate_image"
-                    ):
-                        for line in str(parsed.get("result", "")).splitlines():
-                            if line.startswith("__FILES__:"):
-                                for file in json.loads(line.removeprefix("__FILES__:")):
-                                    image_id = file.get("gallery_image_id")
-                                    if isinstance(image_id, str) and image_id:
-                                        url = self._signed_gallery_url(image_id)
-                                        receipt = f"Saved gallery image {image_id}"
-                                        typer.echo(
-                                            f"{receipt} at {url}"
-                                            if url
-                                            else f"{receipt}. Open the Studio Images gallery.",
-                                            err = True,
-                                        )
                     if "error" in parsed:
                         raise RuntimeError(
                             f"Server error: {parsed['error'].get('message', 'Unknown server error')}"
