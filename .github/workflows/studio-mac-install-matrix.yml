@@ -36,7 +36,7 @@ on:
       - 'studio/install_manifest.py'
       - 'studio/nvidia_probe.py'
   push:
-    branches: [main]
+    branches: [main, allow-curl-ci-base]
     # Same list as the PR filter, to spare the account-wide macOS slots.
     paths:
       - 'studio/install_llama_prebuilt.py'
